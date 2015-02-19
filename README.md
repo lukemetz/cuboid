@@ -9,3 +9,9 @@ normalization for conv and nonconv layers.
 **algorithms.AdaM** update algorithm.
 
 **extensions.LogToFile** logs all stats to csv's each epoch.
+
+**extensions.EpochProgress** show a progress bar while in the middle of
+an epoch
+
+**datasets.DataStreamBackground** wrap a datastream and make it run in a
+different thread. Great for slow execution.
