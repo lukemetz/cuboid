@@ -1,4 +1,4 @@
-from blocks.bricks import Brick
+from blocks.bricks import Brick, Random
 from blocks.bricks.base import lazy, application
 from blocks.utils import shared_floatx_zeros
 from blocks.utils import shared_floatx_zeros
@@ -122,3 +122,17 @@ class BatchNormalization(BatchNormalizationBase):
             return self.input_dim
         super(BatchNormalizationConv, self).get_dim(name)
 
+class Dropout(Random):
+    @lazy
+    def __init__(self, p_drop, **kwargs):
+        super(Dropout, self).__init__(**kwargs)
+        self.p_drop = p_drop
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        if self.p_drop != 0:
+            retain_prob = 1 - self.p_drop
+            mask = self.theano_rng.binomial(input_.shape, p=retain_prob, dtype='int32').astype('float32')
+            return input_ / retain_prob * mask
+        else:
+            return input_
