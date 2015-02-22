@@ -1,5 +1,4 @@
 from blocks.datasets.streams import DataStreamWrapper
-import futures
 
 from multiprocessing import Process, Queue
 
