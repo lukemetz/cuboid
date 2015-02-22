@@ -62,16 +62,19 @@ class BatchNormalizationBase(Brick):
 
 class BatchNormalizationConv(BatchNormalizationBase):
     @lazy
-    def __init__(self, input_shape, **kwargs):
+    def __init__(self, input_dim, **kwargs):
         super(BatchNormalizationConv, self).__init__(**kwargs)
-        self.input_shape = input_shape
-        self.num_channels = input_shape[0]
+        self.input_dim = input_dim
+
+    def initialize(self):
+        self.num_channels = self.input_dim[0]
+        super(BatchNormalizationConv, self).initialize()
 
     def _allocate(self):
-        B = shared_floatx_zeros((self.num_channels,))
+        B = shared_floatx_zeros((self.num_channels,), name="B")
         self.params.append(B)
 
-        Y = shared_floatx_zeros((self.num_channels,))
+        Y = shared_floatx_zeros((self.num_channels,), name="Y")
         self.params.append(Y)
 
     @application(inputs=['input_'], outputs=['output'])
@@ -89,10 +92,10 @@ class BatchNormalizationConv(BatchNormalizationBase):
 
     def get_dim(self, name):
         if name == "input_":
-            return self.input_shape
+            return self.input_dim
         if name == "output":
-            return self.input_shape
-        super(BatchNormalizationConv, self).get_dim(name)
+            return self.input_dim
+        return super(BatchNormalizationConv, self).get_dim(name)
 
 class BatchNormalization(BatchNormalizationBase):
     @lazy
@@ -101,10 +104,10 @@ class BatchNormalization(BatchNormalizationBase):
         self.input_dim = input_dim
 
     def _allocate(self):
-        B = shared_floatx_zeros((self.input_dim,))
+        B = shared_floatx_zeros((self.input_dim,), name="B")
         self.params.append(B)
 
-        Y = shared_floatx_zeros((self.input_dim,))
+        Y = shared_floatx_zeros((self.input_dim,), name="Y")
         self.params.append(Y)
 
     @application(inputs=['input_'], outputs=['output'])
@@ -125,7 +128,7 @@ class BatchNormalization(BatchNormalizationBase):
             return self.input_dim
         if name == "output":
             return self.input_dim
-        super(BatchNormalizationConv, self).get_dim(name)
+        return super(BatchNormalizationConv, self).get_dim(name)
 
 
 
