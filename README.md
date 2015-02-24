@@ -7,6 +7,7 @@ Currently contains:
 normalization for conv and nonconv layers.
 
 **algorithms.AdaM** update algorithm.
+**algorithms.NAG** Nesterov momentum update algorithm.
 
 **extensions.LogToFile** logs all stats to csv's each epoch.
 
