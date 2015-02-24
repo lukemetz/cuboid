@@ -6,7 +6,10 @@ Currently contains:
 **bricks.BatchNormalizationConv** and **bricks.BatchNormalization**, batch
 normalization for conv and nonconv layers.
 
+**bricks.FilterPool** Filter pool
+
 **algorithms.AdaM** update algorithm.
+
 **algorithms.NAG** Nesterov momentum update algorithm.
 
 **extensions.LogToFile** logs all stats to csv's each epoch.
