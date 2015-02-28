@@ -10,6 +10,8 @@ import theano
 from theano import tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
+from theano.sandbox.cuda.dnn import dnn_conv
+
 import numpy as np
 
 
@@ -22,12 +24,15 @@ class BatchNormalizationBase(Brick):
     seed_rng = np.random.RandomState(config.default_seed)
 
     @lazy
-    def __init__(self, B_init, Y_init, epsilon=1e-9, seed=None, **kwargs):
+    def __init__(self, B_init, Y_init, epsilon=1e-9, seed=None,
+            population_mean=None, population_std=None, **kwargs):
         super(BatchNormalizationBase, self).__init__(**kwargs)
         self.eps = epsilon
         self.seed = seed
         self.B_init = B_init
         self.Y_init = Y_init
+        self.population_mean = population_mean
+        self.population_std = population_std
 
     @property
     def seed(self):
@@ -82,9 +87,14 @@ class BatchNormalizationConv(BatchNormalizationBase):
         """
         Reference: http://arxiv.org/pdf/1502.03167v2.pdf
         """
-        minibatch_mean = T.mean(input_, axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
-        minibatch_var = T.var(input_, axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
-        norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
+
+        if self.population_mean is None and self.population_std is None:
+            minibatch_mean = T.mean(input_, axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
+            minibatch_var = T.var(input_, axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
+            norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
+        else:
+            norm_x = (input_ - self.population_mean) / self.population_std
+
         B, Y = self.params
         B = B.dimshuffle(('x', 0, 'x', 'x'))
         Y = Y.dimshuffle(('x', 0, 'x', 'x'))
@@ -115,9 +125,13 @@ class BatchNormalization(BatchNormalizationBase):
         """
         Reference: http://arxiv.org/pdf/1502.03167v2.pdf
         """
-        minibatch_mean = T.mean(input_, axis=[0]).dimshuffle('x', 0)
-        minibatch_var = T.var(input_, axis=[0]).dimshuffle('x', 0)
-        norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
+        if self.population_mean is None and self.population_std is None:
+            minibatch_mean = T.mean(input_, axis=[0]).dimshuffle('x', 0)
+            minibatch_var = T.var(input_, axis=[0]).dimshuffle('x', 0)
+            norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
+        else:
+            norm_x = (input_ - self.population_mean) / self.population_std
+
         B, Y = self.params
         B = B.dimshuffle(('x', 0))
         Y = Y.dimshuffle(('x', 0))
@@ -178,3 +192,37 @@ class FilterPool(Brick):
         elif name == "output":
             return self.input_dim[0]
 
+
+class Convolutional(conv.Convolutional):
+    def __init__(self, **kwargs):
+        super(Convolutional, self).__init__(**kwargs)
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        if self.use_bias:
+            W, b = self.params
+        else:
+            W, = self.params
+
+        padding_and_border_mode = self.border_mode
+        if self.border_mode == 'same':
+            padding_and_border_mode = ((self.filter_size[0] - 1) // 2, (self.filter_size[1] - 1) // 2)
+
+        output = dnn_conv(
+            input_, W,
+            subsample=self.step,
+            border_mode=padding_and_border_mode)
+        if self.use_bias:
+            output += b.dimshuffle('x', 0, 1, 2)
+        return output
+
+    def get_dim(self, name):
+        if name == 'input_':
+            return (self.num_channels,) + self.image_size
+        if name == 'output':
+            if self.border_mode == 'same':
+                return (self.num_filters,) + self.image_size
+            else:
+                return ((self.num_filters,) +
+                        ConvOp.getOutputShape(self.image_size, self.filter_size,
+                                              self.step, self.border_mode))
