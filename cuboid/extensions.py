@@ -79,3 +79,20 @@ class ExperimentSaver(TrainingExtension):
         save_parameter_values(params, path)
 
         log.to_dataframe().to_csv(self.log_path)
+
+import inspect
+from blocks.extensions import SimpleExtension
+
+class EpochSharedVariableModifier(TrainingExtension):
+    def __init__(self, parameter, function, **kwargs):
+        super(EpochSharedVariableModifier, self).__init__(**kwargs)
+        self.parameter = parameter
+        self.function = function
+
+    def after_epoch(self):
+        epoch_done = self.main_loop.log.status.epochs_done
+
+        old_value = self.parameter.get_value()
+        new_value = self.function(epoch_done, old_value)
+        self.parameter.set_value(new_value)
+
