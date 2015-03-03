@@ -44,11 +44,14 @@ class ExperimentSaver(TrainingExtension):
         self.src_directory = src_directory
 
         self.params_path = os.path.join(self.dest_directory, 'params')
+        self.log_path = os.path.join(self.dest_directory, 'log.csv')
+
+        self.write_src()
 
     def params_path_for_epoch(self, i):
         return os.path.join(self.params_path, str(i))
 
-    def before_training(self):
+    def write_src(self):
         if os.path.exists(self.dest_directory):
             time_string = datetime.datetime.now().strftime('%m-%d-%H-%M-%S') 
             move_to = self.dest_directory + time_string + "_backup"
@@ -74,3 +77,5 @@ class ExperimentSaver(TrainingExtension):
         params = self.main_loop.model.get_param_values()
         path = self.params_path_for_epoch(epoch_done)
         save_parameter_values(params, path)
+
+        log.to_dataframe().to_csv(self.log_path)
