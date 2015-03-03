@@ -90,7 +90,7 @@ class BatchNormalizationConv(BatchNormalizationBase):
 
         if self.population_mean is None and self.population_std is None:
             minibatch_mean = T.mean(input_, axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
-            minibatch_var = T.var(input_, axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
+            minibatch_var = T.mean(T.sqr((input_ - minibatch_mean)), axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
             norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
         else:
             norm_x = (input_ - self.population_mean) / self.population_std
@@ -127,7 +127,7 @@ class BatchNormalization(BatchNormalizationBase):
         """
         if self.population_mean is None and self.population_std is None:
             minibatch_mean = T.mean(input_, axis=[0]).dimshuffle('x', 0)
-            minibatch_var = T.var(input_, axis=[0]).dimshuffle('x', 0)
+            minibatch_var = T.sqr(input_ - minibatch_mean)
             norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
         else:
             norm_x = (input_ - self.population_mean) / self.population_std
