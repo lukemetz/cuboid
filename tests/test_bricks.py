@@ -67,8 +67,8 @@ def test_batchnormconv_inference():
             B_init = Constant(0),
             Y_init = Constant(1),
             input_dim = (4, 5, 5))
-    layer.population_mean = 2
-    layer.population_std = 4
+    layer.population_mean = 2 * np.ones(4)
+    layer.population_var = 16 * np.ones(4)
     layer.initialize()
     x = T.tensor4()
 
@@ -114,7 +114,7 @@ def test_batchnorm_training():
             input_dim = 5)
 
     layer.population_mean = 2
-    layer.population_std = 4
+    layer.population_var = 16
 
     layer.initialize()
     x = T.matrix()

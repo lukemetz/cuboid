@@ -25,14 +25,14 @@ class BatchNormalizationBase(Brick):
 
     @lazy
     def __init__(self, B_init, Y_init, epsilon=1e-9, seed=None,
-            population_mean=None, population_std=None, **kwargs):
+            population_mean=None, population_var=None, **kwargs):
         super(BatchNormalizationBase, self).__init__(**kwargs)
         self.eps = epsilon
         self.seed = seed
         self.B_init = B_init
         self.Y_init = Y_init
         self.population_mean = population_mean
-        self.population_std = population_std
+        self.population_var = population_var
 
     @property
     def seed(self):
@@ -65,6 +65,7 @@ class BatchNormalizationBase(Brick):
         self.Y_init.initialize(Y, self.rng)
 
 
+
 class BatchNormalizationConv(BatchNormalizationBase):
     @lazy
     def __init__(self, input_dim, **kwargs):
@@ -88,12 +89,14 @@ class BatchNormalizationConv(BatchNormalizationBase):
         Reference: http://arxiv.org/pdf/1502.03167v2.pdf
         """
 
-        if self.population_mean is None and self.population_std is None:
+        if self.population_mean is None and self.population_var is None:
             minibatch_mean = T.mean(input_, axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
             minibatch_var = T.mean(T.sqr((input_ - minibatch_mean)), axis=[0, 2, 3]).dimshuffle('x', 0, 'x', 'x')
             norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
         else:
-            norm_x = (input_ - self.population_mean) / self.population_std
+            theano_mean = T.as_tensor_variable(self.population_mean).dimshuffle('x', 0, 'x', 'x')
+            theano_std = T.sqrt(self.population_var + self.eps).dimshuffle('x', 0, 'x', 'x')
+            norm_x = (input_ - theano_mean) / theano_std
 
         B, Y = self.params
         B = B.dimshuffle(('x', 0, 'x', 'x'))
@@ -125,12 +128,12 @@ class BatchNormalization(BatchNormalizationBase):
         """
         Reference: http://arxiv.org/pdf/1502.03167v2.pdf
         """
-        if self.population_mean is None and self.population_std is None:
+        if self.population_mean is None and self.population_var is None:
             minibatch_mean = T.mean(input_, axis=[0]).dimshuffle('x', 0)
             minibatch_var = T.sqr(input_ - minibatch_mean)
             norm_x = (input_ - minibatch_mean) / (T.sqrt(minibatch_var + self.eps))
         else:
-            norm_x = (input_ - self.population_mean) / self.population_std
+            norm_x = (input_ - self.population_mean) / T.sqrt(self.population_var + self.eps)
 
         B, Y = self.params
         B = B.dimshuffle(('x', 0))
