@@ -2,8 +2,7 @@ from blocks.bricks import Brick, Random, Sequence, Feedforward, Initializable, A
 from blocks.bricks.base import lazy, application
 from blocks.bricks import conv
 
-from blocks.utils import shared_floatx_zeros
-from blocks.utils import shared_floatx_zeros
+from blocks.utils import shared_floatx_zeros, pack
 from blocks import config
 
 import theano
@@ -107,7 +106,7 @@ class BatchNormalizationConv(BatchNormalizationBase):
         if name == "input_":
             return self.input_dim
         if name == "output":
-            return self.input_dim
+            return self.input_dim  
         return super(BatchNormalizationConv, self).get_dim(name)
 
 class BatchNormalization(BatchNormalizationBase):
@@ -137,7 +136,7 @@ class BatchNormalization(BatchNormalizationBase):
 
         B, Y = self.params
         B = B.dimshuffle(('x', 0))
-        Y = Y.dimshuffle(('x', 0))
+        Y = Y.dimshuffle(('x', 0))  
         return norm_x * Y + B
 
     def get_dim(self, name):
@@ -174,7 +173,7 @@ class Flattener(conv.Flattener):
 
     def get_dim(self, name):
         if name == "input_":
-            return self.input_dim
+            return self.input_dim  
         if name == "output":
             return np.prod(self.input_dim)
 
@@ -205,7 +204,7 @@ class Convolutional(conv.Convolutional):
         if self.use_bias:
             W, b = self.params
         else:
-            W, = self.params
+            W, = self.params  
 
         padding_and_border_mode = self.border_mode
         if self.border_mode == 'same':
@@ -279,3 +278,23 @@ class BrickSequence(Sequence, Initializable, Feedforward):
 
         for i, l in enumerate(self.bricks):
             last_l, last_shape, p = init_layer(last_l, last_shape, l, i)
+
+    @application
+    def apply_inference(self, *args):
+        child_input = args
+        for brick in self.bricks:
+            if isinstance(brick, Dropout):
+                continue
+            output = brick.apply(*pack(child_input))
+            child_input = output
+        return output
+
+class LeakyRectifier(Activation):
+
+    def __init__(self, a=0.01, **kwargs):
+        self.a = a
+        super(LeakyRectifier, self).__init__(**kwargs)
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        return T.maximum(input_, self.a*input_)

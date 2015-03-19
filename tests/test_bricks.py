@@ -4,6 +4,8 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
 from cuboid.bricks import Dropout, FilterPool, BatchNormalizationConv, BatchNormalization, BrickSequence
+from cuboid.bricks import LeakyRectifier
+
 from blocks.initialization import Constant
 from blocks.bricks import Linear, Rectifier
 
@@ -149,3 +151,18 @@ def test_smart_sequence():
     ret = _func(x_val)
     assert_equal(ret.shape, (9, 4))
     assert_allclose(ret, 0)
+
+def test_leaky_rectifier():
+    x = T.matrix()
+    y = LeakyRectifier(a=0.5).apply(x)
+
+    _func = theano.function([x], y)
+
+    x_val = np.ones((1, 1), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret, 1)
+
+    x_val = -1 * np.ones((1, 1), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret, -0.5)
+
