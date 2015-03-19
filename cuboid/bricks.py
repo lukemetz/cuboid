@@ -1,4 +1,4 @@
-from blocks.bricks import Brick, Random
+from blocks.bricks import Brick, Random, Sequence, Feedforward, Initializable, Activation
 from blocks.bricks.base import lazy, application
 from blocks.bricks import conv
 
@@ -229,3 +229,53 @@ class Convolutional(conv.Convolutional):
                 return ((self.num_filters,) +
                         ConvOp.getOutputShape(self.image_size, self.filter_size,
                                               self.step, self.border_mode))
+
+def flatten(transforms):
+    # flatten transforms
+    new_trans = []
+    for tran in transforms:
+        if type(tran) is list:
+            new_trans.extend(tran)
+        else:
+            new_trans.append(tran)
+    return new_trans
+
+def init_layer(last_l, last_shape, current_l, index):
+    if last_l != None:
+        if not (isinstance(last_l, Activation) or isinstance(last_l, Dropout)):
+            last_shape = last_l.get_dim("output")
+
+    if hasattr(current_l, 'image_size') and hasattr(current_l, 'num_channels') and len(last_shape) == 3:
+        current_l.image_size = last_shape[1:]
+        current_l.num_channels = last_shape[0]
+    elif hasattr(current_l, 'input_dim'):
+        current_l.input_dim = last_shape
+    else:
+        assert isinstance(current_l, Activation) or isinstance(current_l, Dropout)
+
+    current_l.initialize()
+    current_l.name += "_"+str(index)
+
+    return current_l, last_shape, current_l.params
+
+class BrickSequence(Sequence, Initializable, Feedforward):
+    """
+    Combination class to deal with a sequence of bricks.
+    input_dim automatically set on bricks
+
+    Note, this class tries to make its best guess on how inputshapes are propogated. It is not perfect.
+    """
+    @lazy
+    def __init__(self, input_dim, bricks, **kwargs):
+        self.input_dim = input_dim
+        self.bricks= flatten(bricks)
+
+        application_methods = [t.apply for t in self.bricks]
+        super(BrickSequence, self).__init__(application_methods, **kwargs)
+
+    def _push_allocation_config(self):
+        last_l = None
+        last_shape = self.input_dim
+
+        for i, l in enumerate(self.bricks):
+            last_l, last_shape, p = init_layer(last_l, last_shape, l, i)

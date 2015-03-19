@@ -8,6 +8,9 @@ normalization for conv and nonconv layers.
 
 **bricks.FilterPool** Filter pool
 
+**bricks.BrickSequence** For sequences of bricks. Tries to keep dim's
+constent thoughout the chain.
+
 **algorithms.AdaM** update algorithm.
 
 **algorithms.NAG** Nesterov momentum update algorithm.
