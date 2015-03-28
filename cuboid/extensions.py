@@ -73,7 +73,7 @@ class ExperimentSaver(TrainingExtension):
 
     def after_epoch(self):
         log = self.main_loop.log
-        epoch_done = log.status.epochs_done
+        epoch_done = log.status['epochs_done']
         params = self.main_loop.model.get_param_values()
         path = self.params_path_for_epoch(epoch_done)
         save_parameter_values(params, path)
@@ -90,7 +90,7 @@ class EpochSharedVariableModifier(TrainingExtension):
         self.function = function
 
     def after_epoch(self):
-        epoch_done = self.main_loop.log.status.epochs_done
+        epoch_done = self.main_loop.log.status['epochs_done']
 
         old_value = self.parameter.get_value()
         new_value = self.function(epoch_done, old_value)
