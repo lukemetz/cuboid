@@ -1,6 +1,7 @@
 from blocks.bricks import Brick, Random, Sequence, Feedforward, Initializable, Activation
 from blocks.bricks.base import lazy, application
 from blocks.bricks import conv
+from blocks.initialization import Constant
 
 from blocks.utils import shared_floatx_zeros, pack
 from blocks import config
@@ -22,8 +23,8 @@ class BatchNormalizationBase(Brick):
 
     seed_rng = np.random.RandomState(config.default_seed)
 
-    @lazy
-    def __init__(self, B_init, Y_init, epsilon=1e-9, seed=None,
+    @lazy()
+    def __init__(self, B_init=Constant(0), Y_init=Constant(1), epsilon=1e-9, seed=None,
             population_mean=None, population_var=None, **kwargs):
         super(BatchNormalizationBase, self).__init__(**kwargs)
         self.eps = epsilon
@@ -66,7 +67,7 @@ class BatchNormalizationBase(Brick):
 
 
 class BatchNormalizationConv(BatchNormalizationBase):
-    @lazy
+    @lazy()
     def __init__(self, input_dim, **kwargs):
         super(BatchNormalizationConv, self).__init__(**kwargs)
         self.input_dim = input_dim
@@ -110,7 +111,7 @@ class BatchNormalizationConv(BatchNormalizationBase):
         return super(BatchNormalizationConv, self).get_dim(name)
 
 class BatchNormalization(BatchNormalizationBase):
-    @lazy
+    @lazy()
     def __init__(self, input_dim, **kwargs):
         super(BatchNormalization, self).__init__(**kwargs)
         self.input_dim = input_dim
@@ -151,7 +152,7 @@ class BatchNormalization(BatchNormalizationBase):
 srng = RandomStreams(seed=32)
 
 class Dropout(Random):
-    @lazy
+    @lazy(allocation=['p_drop'])
     def __init__(self, p_drop, **kwargs):
         super(Dropout, self).__init__(**kwargs)
         self.p_drop = p_drop
@@ -166,7 +167,7 @@ class Dropout(Random):
             return input_
 
 class Flattener(conv.Flattener):
-    @lazy
+    @lazy(allocation=['input_dim'])
     def __init__(self, input_dim, **kwargs):
         super(Flattener, self).__init__(**kwargs)
         self.input_dim = input_dim
@@ -178,7 +179,7 @@ class Flattener(conv.Flattener):
             return np.prod(self.input_dim)
 
 class FilterPool(Brick):
-    @lazy
+    @lazy()
     def __init__(self, fn, input_dim, **kwargs):
         super(FilterPool, self).__init__(**kwargs)
         self.fn = fn
@@ -264,7 +265,7 @@ class BrickSequence(Sequence, Initializable, Feedforward):
 
     Note, this class tries to make its best guess on how inputshapes are propogated. It is not perfect.
     """
-    @lazy
+    @lazy()
     def __init__(self, input_dim, bricks, **kwargs):
         self.input_dim = input_dim
         self.bricks= flatten(bricks)
