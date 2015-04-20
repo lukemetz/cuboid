@@ -5,7 +5,8 @@ import shutil
 from theano import tensor
 from numpy.testing import assert_allclose
 
-from blocks.datasets import ContainerDataset
+from fuel.datasets import IterableDataset
+from fuel.streams import DataStream
 from blocks.main_loop import MainLoop
 from blocks.algorithms import GradientDescent, Scale
 from blocks.utils import shared_floatx
@@ -23,7 +24,8 @@ def setup_mainloop(extension):
     """
     features = [numpy.array(f, dtype=floatX)
                 for f in [[1, 2], [3, 4], [5, 6]]]
-    dataset = ContainerDataset(dict(features=features))
+    dataset = IterableDataset(dict(features=features))
+    datastream = DataStream(dataset)
 
     W = shared_floatx([0, 0], name='W')
     x = tensor.vector('features')
@@ -35,7 +37,7 @@ def setup_mainloop(extension):
 
 
     main_loop = MainLoop(
-        model=Model(cost), data_stream=dataset.get_default_stream(),
+        model=Model(cost), data_stream=datastream,
         algorithm=algorithm,
         extensions=[
             FinishAfter(after_n_epochs=1),
@@ -58,7 +60,7 @@ def test_epochsharedvariablemodifier():
 
     features = [numpy.array(f, dtype=floatX)
                 for f in [[1, 2], [3, 4], [5, 6]]]
-    dataset = ContainerDataset(dict(features=features))
+    dataset = IterableDataset(dict(features=features))
 
     W = shared_floatx([0, 0], name='W')
     x = tensor.vector('features')
@@ -69,7 +71,7 @@ def test_epochsharedvariablemodifier():
     sgd = GradientDescent(cost=cost, params=[W],
                           step_rule=step_rule)
     main_loop = MainLoop(
-        model=Model(cost), data_stream=dataset.get_default_stream(),
+        model=Model(cost), data_stream=DataStream(dataset),
         algorithm=sgd,
         extensions=[
             FinishAfter(after_n_epochs=1),
