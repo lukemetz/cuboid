@@ -7,7 +7,7 @@ class LogToFile(SimpleExtension):
         kwargs.setdefault("before_first_epoch", True)
         kwargs.setdefault("on_resumption", True)
         kwargs.setdefault("after_training", True)
-        kwargs.setdefault("after_every_epoch", True)
+        kwargs.setdefault("after_epoch", True)
         kwargs.setdefault("on_interrupt", True)
 
         self.file_name = file_name
