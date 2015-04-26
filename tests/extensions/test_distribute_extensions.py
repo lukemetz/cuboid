@@ -12,24 +12,24 @@ class Worker:
 
 def test_distribute_update():
     w = Worker()
-    w.commit_changes = MagicMock()
+    w.commit_update = MagicMock()
 
     ex = DistributeUpdate(w, every_n_epochs=1)
     m = setup_mainloop(ex)
     m.run()
 
-    w.commit_changes.assert_called_with("1")
+    w.commit_update.assert_called_with("1")
 
 def test_distribute_finish():
     w = Worker()
-    w.commit_changes = MagicMock()
+    w.commit_update = MagicMock()
     w.finish_job= MagicMock()
 
     ex = DistributeFinish(w)
     m = setup_mainloop(ex)
     m.run()
 
-    w.commit_changes.assert_called_with("finished@ 1")
+    w.commit_update.assert_called_with("finished@ 1")
     w.finish_job.assert_called()
 
 class Experiment:
@@ -43,7 +43,7 @@ class Res:
 def test_distribute_whetlab_finish():
     w = Worker()
     w.running_job = "runningjob"
-    w.commit_changes = MagicMock()
+    w.commit_update = MagicMock()
     w.finish_job = MagicMock()
     w.get_running = MagicMock(return_value=[])
 
@@ -52,20 +52,13 @@ def test_distribute_whetlab_finish():
     exp.suggest = MagicMock(return_value=Res(22))
     exp.pending = MagicMock(return_value=[])
 
-    def rewrite_jobs_from_func(make_jobs_func):
-        jobs = make_jobs_func()
-        w.next_jobs = jobs
-
-    w.rewrite_jobs_from_func = rewrite_jobs_from_func
-
-    def score_func():
+    def score_func(mainloop):
         return 123
 
     ex = DistributeWhetlabFinish(w, exp, score_func)
     m = setup_mainloop(ex)
     m.run()
 
-    w.commit_changes.assert_called_with("finished@ 1")
+    w.commit_update.assert_called_with("finished@ 1")
     w.finish_job.assert_called()
     exp.update_by_result_id.assert_called_with("runningjob", 123)
-    assert_equal(w.next_jobs, ["22"])
