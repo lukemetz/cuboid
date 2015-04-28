@@ -1,5 +1,4 @@
 from blocks.extensions import SimpleExtension
-from distribute.wl import make_next_jobs_func
 
 class DistributeUpdate(SimpleExtension):
     def __init__(self, worker, **kwargs):
