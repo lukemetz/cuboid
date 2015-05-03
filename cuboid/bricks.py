@@ -4,7 +4,7 @@ from blocks.bricks import conv
 from blocks.initialization import Constant
 
 from blocks.utils import shared_floatx_zeros, pack
-from blocks import config
+from blocks.config import config
 
 import theano
 from theano import tensor as T
