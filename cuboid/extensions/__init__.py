@@ -1,59 +1,51 @@
-from blocks.extensions import SimpleExtension, TrainingExtension
-
-from progressbar import ProgressBar, Percentage, ETA, Bar
-
-class LogToFile(SimpleExtension):
-    def __init__(self, file_name, **kwargs):
-        kwargs.setdefault("before_first_epoch", True)
-        kwargs.setdefault("on_resumption", True)
-        kwargs.setdefault("after_training", True)
-        kwargs.setdefault("after_epoch", True)
-        kwargs.setdefault("on_interrupt", True)
-
-        self.file_name = file_name
-
-        super(LogToFile, self).__init__(**kwargs)
-
-    def do(self, which_callback, *args):
-        self.main_loop.log.to_dataframe().to_csv(self.file_name)
-
-class EpochProgress(TrainingExtension):
-    def __init__(self, batch_per_epoch, **kwargs):
-        super(EpochProgress, self).__init__(**kwargs)
-        self.batch_per_epoch = batch_per_epoch
-
-    def before_epoch(self):
-        widgets = [Percentage(), ' ', Bar(),
-                   ' ', ETA(), ' ']
-        self.progress = ProgressBar(widgets=widgets, maxval=self.batch_per_epoch).start()
-        self.on_batch = 0
-
-    def before_batch(self, batch):
-        self.progress.update(self.on_batch)
-        self.on_batch += 1
-
 import shutil
 import os
-from blocks.dump import save_parameter_values
+from cuboid.dump import save_parameter_values
 import datetime
+import pandas as pd
+import ipdb
 
-class ExperimentSaver(TrainingExtension):
-    def __init__(self, dest_directory, src_directory, **kwargs):
-        super(ExperimentSaver, self).__init__(**kwargs)
+from blocks.extensions import SimpleExtension, TrainingExtension
+import json
+
+class ExperimentSaver(SimpleExtension):
+    """
+    Save a given experiment to a file
+    * dump the current source directory
+    * save parameters
+    * dump the training logs
+
+    Parameters
+    ---------
+    dest_directory: basestring
+        Path to dump the experiment.
+    src_directory: basestring
+        Path to source to be copied.
+    config: dict
+        python dictionary representing configs
+    """
+
+    def __init__(self, dest_directory, src_directory, config={}, **kwargs):
         self.dest_directory = dest_directory
         self.src_directory = src_directory
+        self.config = config
 
         self.params_path = os.path.join(self.dest_directory, 'params')
         self.log_path = os.path.join(self.dest_directory, 'log.csv')
 
         self.write_src()
+        self.write_config()
+
+        super(ExperimentSaver, self).__init__(**kwargs)
 
     def params_path_for_epoch(self, i):
         return os.path.join(self.params_path, str(i))
 
     def write_src(self):
+        # Don't overwrite anything, move it to a backup folder
         if os.path.exists(self.dest_directory):
-            time_string = datetime.datetime.now().strftime('%m-%d-%H-%M-%S') 
+            import ipdb
+            time_string = datetime.datetime.now().strftime('%m-%d-%H-%M-%S')
             move_to = self.dest_directory + time_string + "_backup"
             shutil.move(self.dest_directory, move_to)
 
@@ -71,28 +63,14 @@ class ExperimentSaver(TrainingExtension):
 
         shutil.copytree(self.src_directory, src_path, ignore=ignore)
 
-    def after_epoch(self):
+    def write_config(self):
+        json.dump(self.config, open(os.path.join(self.dest_directory, 'config.json'), 'w+'))
+
+    def do(self, which_callback, *args):
         log = self.main_loop.log
         epoch_done = log.status['epochs_done']
         params = self.main_loop.model.get_param_values()
         path = self.params_path_for_epoch(epoch_done)
         save_parameter_values(params, path)
 
-        log.to_dataframe().to_csv(self.log_path)
-
-import inspect
-from blocks.extensions import SimpleExtension
-
-class EpochSharedVariableModifier(TrainingExtension):
-    def __init__(self, parameter, function, **kwargs):
-        super(EpochSharedVariableModifier, self).__init__(**kwargs)
-        self.parameter = parameter
-        self.function = function
-
-    def after_epoch(self):
-        epoch_done = self.main_loop.log.status['epochs_done']
-
-        old_value = self.parameter.get_value()
-        new_value = self.function(epoch_done, old_value)
-        self.parameter.set_value(new_value)
-
+        pd.DataFrame.from_dict(log).to_csv(self.log_path)

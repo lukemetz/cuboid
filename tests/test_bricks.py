@@ -3,7 +3,7 @@ import theano
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
-from cuboid.bricks import Dropout, FilterPool, BatchNormalizationConv, BatchNormalization, BrickSequence
+from cuboid.bricks import Dropout, FilterPool, BatchNormalizationConv, BatchNormalization
 from cuboid.bricks import LeakyRectifier
 
 from blocks.initialization import Constant
@@ -133,24 +133,6 @@ def test_batchnorm_training():
     assert_allclose(ret[1:5, 0], -0.25)
 
     assert_allclose(ret[0:5,1:5], -0.25)
-
-def test_smart_sequence():
-    seq = BrickSequence(input_dim=3, bricks=[
-          Linear(output_dim=8, weights_init = Constant(1.0), biases_init=Constant(0))
-        , Linear(output_dim=13, weights_init = Constant(0), biases_init=Constant(0))
-        , Rectifier()
-        , Linear(output_dim=4, weights_init = Constant(1.0), biases_init=Constant(0))
-        ])
-
-    seq.initialize()
-
-    x = T.matrix()
-    y = seq.apply(x)
-    _func = theano.function([x], y)
-    x_val = np.ones((9, 3), dtype=theano.config.floatX)
-    ret = _func(x_val)
-    assert_equal(ret.shape, (9, 4))
-    assert_allclose(ret, 0)
 
 def test_leaky_rectifier():
     x = T.matrix()

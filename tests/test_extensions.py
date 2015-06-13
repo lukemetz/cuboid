@@ -14,7 +14,7 @@ from blocks.model import Model
 
 from blocks.extensions import FinishAfter
 
-from cuboid.extensions import ExperimentSaver, EpochSharedVariableModifier
+from cuboid.extensions import ExperimentSaver
 
 floatX = theano.config.floatX
 
@@ -53,33 +53,3 @@ def test_experiment_saver():
     main_loop.run()
 
     shutil.rmtree('experimentSaverTest')
-
-
-def test_epochsharedvariablemodifier():
-    # modified from @bartvm/blocks test_training
-
-    features = [numpy.array(f, dtype=floatX)
-                for f in [[1, 2], [3, 4], [5, 6]]]
-    dataset = IterableDataset(dict(features=features))
-
-    W = shared_floatx([0, 0], name='W')
-    x = tensor.vector('features')
-    cost = tensor.sum((x-W)**2)
-    cost.name = "cost"
-
-    step_rule = Scale(0.01)
-    sgd = GradientDescent(cost=cost, params=[W],
-                          step_rule=step_rule)
-    main_loop = MainLoop(
-        model=Model(cost), data_stream=DataStream(dataset),
-        algorithm=sgd,
-        extensions=[
-            FinishAfter(after_n_epochs=1),
-            EpochSharedVariableModifier(step_rule.learning_rate,
-                                   lambda epoch, old: numpy.cast[floatX](old / 10))
-            ])
-
-    main_loop.run()
-
-    assert_allclose(step_rule.learning_rate.get_value(), 0.001)
-

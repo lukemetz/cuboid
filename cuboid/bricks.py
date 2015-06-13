@@ -64,8 +64,6 @@ class BatchNormalizationBase(Brick):
         self.B_init.initialize(B, self.rng)
         self.Y_init.initialize(Y, self.rng)
 
-
-
 class BatchNormalizationConv(BatchNormalizationBase):
     @lazy()
     def __init__(self, input_dim, **kwargs):
@@ -148,7 +146,6 @@ class BatchNormalization(BatchNormalizationBase):
         return super(BatchNormalizationConv, self).get_dim(name)
 
 
-
 srng = RandomStreams(seed=32)
 
 class Dropout(Random):
@@ -165,18 +162,6 @@ class Dropout(Random):
             return input_ / retain_prob * mask
         else:
             return input_
-
-class Flattener(conv.Flattener):
-    @lazy(allocation=['input_dim'])
-    def __init__(self, input_dim, **kwargs):
-        super(Flattener, self).__init__(**kwargs)
-        self.input_dim = input_dim
-
-    def get_dim(self, name):
-        if name == "input_":
-            return self.input_dim  
-        if name == "output":
-            return np.prod(self.input_dim)
 
 class FilterPool(Brick):
     @lazy()
@@ -205,7 +190,7 @@ class Convolutional(conv.Convolutional):
         if self.use_bias:
             W, b = self.params
         else:
-            W, = self.params  
+            W, = self.params
 
         padding_and_border_mode = self.border_mode
         if self.border_mode == 'same':
@@ -229,69 +214,7 @@ class Convolutional(conv.Convolutional):
                 return ((self.num_filters,) +
                         ConvOp.getOutputShape(self.image_size, self.filter_size,
                                               self.step, self.border_mode))
-
-def flatten(transforms):
-    # flatten transforms
-    new_trans = []
-    for tran in transforms:
-        if type(tran) is list:
-            new_trans.extend(tran)
-        else:
-            new_trans.append(tran)
-    return new_trans
-
-def init_layer(last_l, last_shape, current_l, index):
-    if last_l != None:
-        if not (isinstance(last_l, Activation) or isinstance(last_l, Dropout)):
-            last_shape = last_l.get_dim("output")
-
-    if hasattr(current_l, 'image_size') and hasattr(current_l, 'num_channels') and len(last_shape) == 3:
-        current_l.image_size = last_shape[1:]
-        current_l.num_channels = last_shape[0]
-    elif hasattr(current_l, 'input_dim'):
-        current_l.input_dim = last_shape
-    else:
-        assert isinstance(current_l, Activation) or isinstance(current_l, Dropout)
-
-    current_l.initialize()
-    current_l.name += "_"+str(index)
-
-    return current_l, last_shape, current_l.params
-
-class BrickSequence(Sequence, Initializable, Feedforward):
-    """
-    Combination class to deal with a sequence of bricks.
-    input_dim automatically set on bricks
-
-    Note, this class tries to make its best guess on how inputshapes are propogated. It is not perfect.
-    """
-    @lazy()
-    def __init__(self, input_dim, bricks, **kwargs):
-        self.input_dim = input_dim
-        self.bricks= flatten(bricks)
-
-        application_methods = [t.apply for t in self.bricks]
-        super(BrickSequence, self).__init__(application_methods, **kwargs)
-
-    def _push_allocation_config(self):
-        last_l = None
-        last_shape = self.input_dim
-
-        for i, l in enumerate(self.bricks):
-            last_l, last_shape, p = init_layer(last_l, last_shape, l, i)
-
-    @application
-    def apply_inference(self, *args):
-        child_input = args
-        for brick in self.bricks:
-            if isinstance(brick, Dropout):
-                continue
-            output = brick.apply(*pack(child_input))
-            child_input = output
-        return output
-
 class LeakyRectifier(Activation):
-
     def __init__(self, a=0.01, **kwargs):
         self.a = a
         super(LeakyRectifier, self).__init__(**kwargs)
