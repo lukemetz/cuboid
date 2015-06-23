@@ -73,4 +73,4 @@ class ExperimentSaver(SimpleExtension):
         path = self.params_path_for_epoch(epoch_done)
         save_parameter_values(params, path)
 
-        pd.DataFrame.from_dict(log).to_csv(self.log_path)
+        pd.DataFrame.from_dict(log, orient='index').to_csv(self.log_path)
