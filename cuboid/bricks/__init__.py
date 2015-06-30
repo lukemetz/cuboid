@@ -60,7 +60,7 @@ class BatchNormalizationBase(Brick):
         self._rng = rng
 
     def _initialize(self):
-        B, Y = self.params
+        B, Y = self.parameters
         self.B_init.initialize(B, self.rng)
         self.Y_init.initialize(Y, self.rng)
 
@@ -76,10 +76,10 @@ class BatchNormalizationConv(BatchNormalizationBase):
 
     def _allocate(self):
         B = shared_floatx_zeros((self.num_channels,), name="B")
-        self.params.append(B)
+        self.parameters.append(B)
 
         Y = shared_floatx_zeros((self.num_channels,), name="Y")
-        self.params.append(Y)
+        self.parameters.append(Y)
 
     @application(inputs=['input_'], outputs=['output'])
     def apply(self, input_):
@@ -96,7 +96,7 @@ class BatchNormalizationConv(BatchNormalizationBase):
             theano_std = T.sqrt(self.population_var + self.eps).dimshuffle('x', 0, 'x', 'x')
             norm_x = (input_ - theano_mean) / theano_std
 
-        B, Y = self.params
+        B, Y = self.parameters
         B = B.dimshuffle(('x', 0, 'x', 'x'))
         Y = Y.dimshuffle(('x', 0, 'x', 'x'))
         return norm_x * Y + B
@@ -116,10 +116,10 @@ class BatchNormalization(BatchNormalizationBase):
 
     def _allocate(self):
         B = shared_floatx_zeros((self.input_dim,), name="B")
-        self.params.append(B)
+        self.parameters.append(B)
 
         Y = shared_floatx_zeros((self.input_dim,), name="Y")
-        self.params.append(Y)
+        self.parameters.append(Y)
 
     @application(inputs=['input_'], outputs=['output'])
     def apply(self, input_):
@@ -133,7 +133,7 @@ class BatchNormalization(BatchNormalizationBase):
         else:
             norm_x = (input_ - self.population_mean) / T.sqrt(self.population_var + self.eps)
 
-        B, Y = self.params
+        B, Y = self.parameters
         B = B.dimshuffle(('x', 0))
         Y = Y.dimshuffle(('x', 0))  
         return norm_x * Y + B
@@ -188,9 +188,9 @@ class Convolutional(conv.Convolutional):
     @application(inputs=['input_'], outputs=['output'])
     def apply(self, input_):
         if self.use_bias:
-            W, b = self.params
+            W, b = self.parameters
         else:
-            W, = self.params
+            W, = self.parameters
 
         padding_and_border_mode = self.border_mode
         if self.border_mode == 'same':

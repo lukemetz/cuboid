@@ -69,7 +69,7 @@ class ExperimentSaver(SimpleExtension):
     def do(self, which_callback, *args):
         log = self.main_loop.log
         epoch_done = log.status['epochs_done']
-        params = self.main_loop.model.get_param_values()
+        params = self.main_loop.model.get_parameter_values()
         path = self.params_path_for_epoch(epoch_done)
         save_parameter_values(params, path)
 

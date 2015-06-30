@@ -3,6 +3,7 @@ import theano
 from theano.scalar import UnaryScalarOp, same_out
 from theano.gof import local_optimizer, Op, Apply
 from theano.sandbox.cuda import register_opt, GpuOp
+import theano.tensor as T
 
 from blocks.bricks.base import Brick, application
 
