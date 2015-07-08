@@ -74,3 +74,19 @@ class ExperimentSaver(SimpleExtension):
         save_parameter_values(params, path)
 
         pd.DataFrame.from_dict(log, orient='index').to_csv(self.log_path)
+
+class UserFunc(SimpleExtension):
+    """
+    Run a user defined function while training.
+
+    Parameters
+    ---------
+    func: callable,
+        An instance of UserFunc will be passed in
+    """
+    def __init__(self, func, **kwargs):
+        super(UserFunc, self).__init__(**kwargs)
+        self.func = func
+
+    def do(self, which_callback, *args):
+        self.func(self)

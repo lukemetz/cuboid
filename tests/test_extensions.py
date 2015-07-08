@@ -14,7 +14,7 @@ from blocks.model import Model
 
 from blocks.extensions import FinishAfter
 
-from cuboid.extensions import ExperimentSaver
+from cuboid.extensions import ExperimentSaver, UserFunc
 
 floatX = theano.config.floatX
 
@@ -53,3 +53,15 @@ def test_experiment_saver():
     main_loop.run()
 
     shutil.rmtree('experimentSaverTest')
+
+def test_user_func():
+    # make python scope play nice
+    called = [False]
+    def func(extension):
+        called[0] = True
+
+    user_func = UserFunc(after_epoch=True, func=func)
+    main_loop = setup_mainloop(user_func)
+
+    main_loop.run()
+    assert called[0]==True
