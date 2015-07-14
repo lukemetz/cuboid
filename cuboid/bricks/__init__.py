@@ -5,6 +5,7 @@ from blocks.initialization import Constant
 
 from blocks.utils import shared_floatx_zeros, pack
 from blocks.config import config
+from blocks.roles import add_role, PARAMETER
 
 import theano
 from theano import tensor as T
@@ -116,9 +117,11 @@ class BatchNormalization(BatchNormalizationBase):
 
     def _allocate(self):
         B = shared_floatx_zeros((self.input_dim,), name="B")
+        add_role(B, PARAMETER)
         self.parameters.append(B)
 
         Y = shared_floatx_zeros((self.input_dim,), name="Y")
+        add_role(Y, PARAMETER)
         self.parameters.append(Y)
 
     @application(inputs=['input_'], outputs=['output'])
@@ -145,6 +148,29 @@ class BatchNormalization(BatchNormalizationBase):
             return self.input_dim
         return super(BatchNormalizationConv, self).get_dim(name)
 
+class BatchNormalizationRNN(BatchNormalizationBase):
+    def __init__(self, dim, **kwargs):
+        super(BatchNormalizationRNN, self).__init__(**kwargs)
+        self.dim = dim
+
+    def _allocate(self):
+        B = shared_floatx_zeros((self.dim,), name="B")
+        self.parameters.append(B)
+
+        Y = shared_floatx_zeros((self.dim,), name="Y")
+        self.parameters.append(Y)
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        B,Y = self.parameters
+
+        u = T.mean(input_, axis=[0, 1])
+
+        b_u = u.dimshuffle('x', 'x', 0)
+        s = T.mean(T.sqr(input_ - b_u), axis=[0, 1])
+
+        temp = (input_ - b_u) / T.sqrt(s.dimshuffle('x', 'x', 0) + self.eps)
+        return Y.dimshuffle('x', 'x', 0)*temp + B.dimshuffle('x', 'x', 0)
 
 srng = RandomStreams(seed=32)
 
@@ -222,3 +248,22 @@ class LeakyRectifier(Activation):
     @application(inputs=['input_'], outputs=['output'])
     def apply(self, input_):
         return T.maximum(input_, self.a*input_)
+
+class FuncBrick(Brick):
+    """
+    Brick for use with inline functions.
+    Useful for a quick wrap around theano functions.
+
+    Parameters
+    ----------
+    func: callable
+        function to be called
+    """
+    def __init__(self, func, **kwargs):
+        self.func = func
+        super(FuncBrick, self).__init__(**kwargs)
+
+    @application
+    def apply(self, *args):
+        return self.func(*args)
+

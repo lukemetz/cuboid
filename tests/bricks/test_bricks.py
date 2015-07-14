@@ -4,7 +4,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
 from cuboid.bricks import Dropout, FilterPool, BatchNormalizationConv, BatchNormalization
-from cuboid.bricks import LeakyRectifier
+from cuboid.bricks import LeakyRectifier, FuncBrick
 
 from blocks.initialization import Constant
 from blocks.bricks import Linear, Rectifier
@@ -148,3 +148,12 @@ def test_leaky_rectifier():
     ret = _func(x_val)
     assert_allclose(ret, -0.5)
 
+def test_func_brick():
+    x = T.matrix()
+    y = FuncBrick(lambda x: x+1).apply(x)
+
+    _func = theano.function([x], y)
+
+    x_val = np.ones((1, 1), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret, 2)
