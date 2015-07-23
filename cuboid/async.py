@@ -24,5 +24,5 @@ def fork_to_background(make_datastream, sources):
     port = get_open_port()
     proc = Process(target=on_thread, args=(make_datastream, port))
     proc.start()
-    datastream = ServerDataStream(sources, port=port, hwm=hwm)
+    datastream = ServerDataStream(sources, port=port, hwm=hwm, produces_examples=False)
     return datastream, proc
