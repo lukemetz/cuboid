@@ -1,6 +1,7 @@
 import numpy
 import theano
 import shutil
+import os
 
 from theano import tensor
 from numpy.testing import assert_allclose
@@ -14,7 +15,7 @@ from blocks.model import Model
 
 from blocks.extensions import FinishAfter
 
-from cuboid.extensions import ExperimentSaver, UserFunc
+from cuboid.extensions import ExperimentSaver, UserFunc, LogToFile, ExamplesPerSecond
 
 floatX = theano.config.floatX
 
@@ -53,6 +54,22 @@ def test_experiment_saver():
     main_loop.run()
 
     shutil.rmtree('experimentSaverTest')
+
+def test_log_to_file():
+    if os.path.exists("_log.csv"):
+        os.remove("_log.csv")
+
+    extension = LogToFile("_log.csv")
+    main_loop = setup_mainloop(extension)
+    main_loop.run()
+    assert os.path.exists("_log.csv")
+    os.remove("_log.csv")
+
+def test_examples_per_second():
+    extension = ExamplesPerSecond()
+    main_loop = setup_mainloop(extension)
+    main_loop.run()
+    assert 'examples_per_second' in main_loop.log.current_row
 
 def test_user_func():
     # make python scope play nice
