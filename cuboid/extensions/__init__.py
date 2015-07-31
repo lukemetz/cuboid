@@ -7,6 +7,49 @@ import ipdb
 
 from blocks.extensions import SimpleExtension, TrainingExtension
 import json
+import time
+import numpy as np
+
+class LogToFile(SimpleExtension):
+    """
+    Logs training curve to file
+    """
+    def __init__(self, file_path, **kwargs):
+        kwargs.setdefault("after_epoch", True)
+        super(LogToFile, self).__init__(**kwargs)
+        self.file_path = file_path
+
+    def do(self, which_callback, *args):
+        log = self.main_loop.log
+        for k,v in log.status.items():
+            if k[0] != '_':
+                log.current_row[k] = v
+        frame = pd.DataFrame.from_dict(log, orient='index')
+        frame.index.name = "weight_update"
+        frame.to_csv(self.file_path)
+
+class ExamplesPerSecond(TrainingExtension):
+    def __init__(self, roll=10):
+        self.example_accumulator = []
+        self.last_time = time.time()
+        self.times = []
+        self.batches_seen = 0
+        self.roll = roll
+        super(ExamplesPerSecond, self).__init__()
+
+    def after_batch(self, batch):
+        batch_size = len(batch.values()[0])
+        self.example_accumulator.append(batch_size)
+        if len(self.example_accumulator) > self.roll:
+            self.example_accumulator.pop(0)
+
+        new_time = time.time()
+        examples_per_second = np.sum(self.example_accumulator) / (np.sum(self.times))
+        self.main_loop.log.current_row['examples_per_second'] = examples_per_second
+        self.times.append(new_time - self.last_time)
+        self.last_time = new_time
+        if len(self.times) > self.roll:
+            self.times.pop(0)
 
 class ExperimentSaver(SimpleExtension):
     """
