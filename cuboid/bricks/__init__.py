@@ -13,7 +13,7 @@ import theano
 from theano import tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-from theano.sandbox.cuda.dnn import dnn_conv, GpuDnnConv
+from theano.sandbox.cuda.dnn import dnn_conv, GpuDnnConv, dnn_pool
 
 import numpy as np
 
@@ -262,6 +262,34 @@ class Convolutional(Initializable):
         else:
             return super(Conv1D, self).get_dim(name)
 
+class MaxPooling(Brick):
+    @lazy(initialization=['input_dim'])
+    def __init__(self, input_dim, pooling_size=(2,2), stride=None, padding=(0,0), **kwargs):
+        super(MaxPooling, self).__init__(**kwargs)
+        self.padding = padding
+        self.input_dim = input_dim
+        self.stride = stride
+        self.pooling_size=pooling_size
+
+    @application(inputs=["input_"], outputs=["output"])
+    def apply(self, input_):
+        stride = self.stride
+        if not stride:
+            stride = self.pooling_size
+        return dnn_pool(input_, ws=self.pooling_size, stride=stride, pad=self.padding)
+
+    def get_dim(self, name):
+        if name == 'output':
+            c, x, y = self.input_dim
+            px,py = self.padding
+            if self.stride:
+                sx, sy = self.stride
+            else:
+                sx, sy = self.pooling_size
+
+            kx, ky= self.pooling_size
+            return (c, (x + 2 * px - kx) // sx + 1,\
+                       (y + 2 * py - ky) // sy + 1)
 
 class LeakyRectifier(Activation):
     def __init__(self, a=0.01, **kwargs):

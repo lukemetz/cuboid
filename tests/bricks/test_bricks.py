@@ -5,7 +5,7 @@ from numpy.testing import assert_allclose, assert_equal
 
 from cuboid.bricks import Dropout, FilterPool, BatchNormalization
 from cuboid.bricks import LeakyRectifier, FuncBrick, DefaultsSequence
-from cuboid.bricks import Convolutional, Flattener
+from cuboid.bricks import Convolutional, Flattener, MaxPooling
 
 from blocks.initialization import Constant
 from blocks.bricks import Linear, Rectifier
@@ -129,6 +129,19 @@ def test_batchnorm_training():
 #     assert_allclose(ret[1:5, 0], -0.25)
 #
 #     assert_allclose(ret[0:5,1:5], -0.25)
+
+def test_maxpooling():
+    brick = MaxPooling(input_dim=(4, 16, 16), pooling_size=(2,2))
+    brick.initialize()
+
+    x = T.tensor4('input')
+    y = brick.apply(x)
+    func_ = theano.function([x], [y])
+
+    x_val = np.ones((1, 4, 16, 16), dtype=theano.config.floatX)
+    res = func_(x_val)[0]
+    assert_allclose(res.shape, (1, 4, 8, 8))
+    assert_allclose(brick.get_dim("output"), (4, 8, 8))
 
 def test_leaky_rectifier():
     x = T.matrix()
