@@ -1,5 +1,5 @@
 from blocks.bricks import (Brick, Random, Sequence,\
-    Feedforward, Initializable, Activation, FeedforwardSequence, Activation)
+    Feedforward, Initializable, Activation, FeedforwardSequence, Activation, Softmax)
 from blocks.bricks.base import lazy, application
 from blocks.bricks import conv
 from blocks.initialization import Constant, NdarrayInitialization
@@ -137,8 +137,8 @@ class BatchNormalization(Brick):
 srng = RandomStreams(seed=32)
 
 class Dropout(Random):
-    @lazy(allocation=['p_drop'])
-    def __init__(self, p_drop, **kwargs):
+    @lazy(allocation=['p_drop', 'input_dim'])
+    def __init__(self, p_drop, input_dim, **kwargs):
         super(Dropout, self).__init__(**kwargs)
         self.p_drop = p_drop
 
@@ -150,6 +150,12 @@ class Dropout(Random):
             return input_ / retain_prob * mask
         else:
             return input_
+
+    def get_dim(self, name):
+        if name in ['input_', 'output']:
+            return self.input_dim
+        else:
+            return super(Dropout, self).get_dim(name)
 
 class FilterPool(Brick):
     @lazy()
@@ -168,51 +174,16 @@ class FilterPool(Brick):
         elif name == "output":
             return self.input_dim[0]
 
-
-class Convolutional_Old(conv.Convolutional):
-    def __init__(self, **kwargs):
-        super(Convolutional, self).__init__(**kwargs)
-
-    @application(inputs=['input_'], outputs=['output'])
-    def apply(self, input_):
-        if self.use_bias:
-            W, b = self.parameters
-        else:
-            W, = self.parameters
-
-        padding_and_border_mode = self.border_mode
-        if self.border_mode == 'same':
-            padding_and_border_mode = ((self.filter_size[0] - 1) // 2, (self.filter_size[1] - 1) // 2)
-
-        output = dnn_conv(
-            input_, W,
-            subsample=self.step,
-            border_mode=padding_and_border_mode)
-        if self.use_bias:
-            output += b.dimshuffle('x', 0, 1, 2)
-        return output
-
-    def get_dim(self, name):
-        if name == 'input_':
-            return (self.num_channels,) + self.image_size
-        if name == 'output':
-            if self.border_mode == 'same':
-                return (self.num_filters,) + self.image_size
-            else:
-                return ((self.num_filters,) +
-                        ConvOp.getOutputShape(self.image_size, self.filter_size,
-                                              self.step, self.border_mode))
-
 class Convolutional(Initializable):
     @lazy(allocation=['input_dim', 'num_filters', 'filter_size'])
     def __init__(self, input_dim, num_filters, filter_size, pad=(1,1),
-            step=(1,1), **kwargs):
+            stride=(1,1), **kwargs):
         super(Convolutional, self).__init__(**kwargs)
         self.input_dim = input_dim
         self.num_filters = num_filters
         self.filter_size = filter_size
         self.pad = pad
-        self.step = step
+        self.stride = stride
 
     def _allocate(self):
         num_channels = self.input_dim[0]
@@ -244,9 +215,8 @@ class Convolutional(Initializable):
             W, = self.parameters
         output = dnn_conv(
             input_, W,
-            subsample=self.step,
+            subsample=self.stride,
             border_mode=self.pad)
-        print b.ndim, output.ndim
         if self.use_bias:
             output += b.dimshuffle('x', 0, 'x', 'x')
         return output
@@ -256,7 +226,7 @@ class Convolutional(Initializable):
             ishape = (self.input_dim[0], 'x', self.input_dim[1], self.input_dim[2])
             kshape = (self.num_filters, 'x', self.filter_size[0], self.filter_size[1])
             border_mode = self.pad
-            subsample = self.step
+            subsample = self.stride
             oshape = GpuDnnConv.get_out_shape(ishape, kshape, border_mode, subsample)
             return (oshape[1], oshape[2], oshape[3])
         else:
@@ -264,9 +234,9 @@ class Convolutional(Initializable):
 
 class MaxPooling(Brick):
     @lazy(initialization=['input_dim'])
-    def __init__(self, input_dim, pooling_size=(2,2), stride=None, padding=(0,0), **kwargs):
+    def __init__(self, input_dim, pooling_size=(2,2), stride=None, pad=(0,0), **kwargs):
         super(MaxPooling, self).__init__(**kwargs)
-        self.padding = padding
+        self.pad = pad
         self.input_dim = input_dim
         self.stride = stride
         self.pooling_size=pooling_size
@@ -276,12 +246,12 @@ class MaxPooling(Brick):
         stride = self.stride
         if not stride:
             stride = self.pooling_size
-        return dnn_pool(input_, ws=self.pooling_size, stride=stride, pad=self.padding)
+        return dnn_pool(input_, ws=self.pooling_size, stride=stride, pad=self.pad)
 
     def get_dim(self, name):
         if name == 'output':
             c, x, y = self.input_dim
-            px,py = self.padding
+            px,py = self.pad
             if self.stride:
                 sx, sy = self.stride
             else:
@@ -339,6 +309,7 @@ class DefaultsSequence(FeedforwardSequence, Initializable):
         super(DefaultsSequence, self).__init__(application_methods=application_methods, **kwargs)
 
         self.input_dim = input_dim
+        self.output_dim = None
 
     def _push_initialization_config(self):
         # don't overwrite if parameters are set
@@ -368,9 +339,18 @@ class DefaultsSequence(FeedforwardSequence, Initializable):
         for brick, application_method in zip(self.children, self.application_methods):
             print input_dim, brick.name
             # hack as Activations don't have get_dim
-            if not isinstance(brick, Activation):
+            if not isinstance(brick, Activation) and not isinstance(brick, Softmax):
                 brick.input_dim = input_dim
-                input_dim = brick.get_dim(application_method.outputs[0])
+                brick.push_allocation_config()
+                input_dim = brick.get_dim(brick.apply.outputs[0])
+
+        self.output_dim = input_dim
+
+    def get_dim(self, name):
+        if name == "output":
+            return self.output_dim
+        else:
+            return super(DefaultsSequence, self).get_dim(name)
 
 class Flattener(Brick):
     """Flattens the input.
