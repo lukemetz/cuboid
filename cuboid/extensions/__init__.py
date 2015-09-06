@@ -1,6 +1,9 @@
 import shutil
 import os
-from cuboid.dump import save_parameter_values
+
+from cuboid.dump import save_parameter_values, load_parameter_values
+from cuboid.graph import get_algorithm_parameters_values, set_algorithm_parameters_values
+
 import datetime
 import pandas as pd
 import ipdb
@@ -9,6 +12,10 @@ from blocks.extensions import SimpleExtension, TrainingExtension
 import json
 import time
 import numpy as np
+import cPickle
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LogToFile(SimpleExtension):
     """
@@ -25,7 +32,7 @@ class LogToFile(SimpleExtension):
             if k[0] != '_':
                 log.current_row[k] = v
         frame = pd.DataFrame.from_dict(log, orient='index')
-        frame.index.name = "weight_update"
+        frame.index.name = "iterations"
         frame.to_csv(self.file_path)
 
 class ExamplesPerSecond(TrainingExtension):
@@ -51,12 +58,89 @@ class ExamplesPerSecond(TrainingExtension):
         if len(self.times) > self.roll:
             self.times.pop(0)
 
-class ExperimentSaver(SimpleExtension):
+class SavePoint(SimpleExtension):
+    def __init__(self, dest_directory, **kwargs):
+        super(SavePoint, self).__init__(**kwargs)
+        self.dest_directory = dest_directory
+
+        sub_folders = ['params', 'algorithm_params', 'logs', 'status']
+        for s in sub_folders:
+            path = os.path.join(self.dest_directory, s)
+            if not os.path.exists(path):
+                os.mkdir(path)
+
+    def do(self, which_callback, *args):
+        log = self.main_loop.log
+        status = self.main_loop.status
+        algorithm = self.main_loop.algorithm
+        model = self.main_loop.model
+
+        if which_callback=="after_epoch":
+            done = log.status['epochs_done']
+            prefix = "epoch"
+        elif which_callback=="after_batch":
+            done = log.status['iterations_done']
+            prefix = "iterations"
+
+        output_param_path = os.path.join(self.dest_directory, "params",
+                                         "%s_%d.npz"%(prefix, done))
+        output_algorithm_param_path = os.path.join(self.dest_directory,
+                                                   "algorithm_params",
+                                                   "%s_%d.npz"%(prefix, done))
+        output_log_path = os.path.join(self.dest_directory, "logs",
+                                                            "%s_%d.pkl"%(prefix, done))
+        output_status_path = os.path.join(self.dest_directory, "status",
+                                                            "%s_%d.pkl"%(prefix, done))
+
+        params = model.get_parameter_values()
+        save_parameter_values(params, output_param_path)
+
+        algorithm_params = get_algorithm_parameters_values(algorithm, model)
+        save_parameter_values(algorithm_params, output_algorithm_param_path)
+
+        cPickle.dump(log, open(output_log_path, 'w'))
+        cPickle.dump(status, open(output_status_path, 'w'))
+
+        logger.info("Wrote new savepoint to (%s)"%self.dest_directory)
+
+class Resume(SimpleExtension):
+    def __init__(self, directory, place, **kwargs):
+        self.directory = directory
+        self.place = place
+        super(Resume, self).__init__(before_epoch=True)
+
+    def do(self, which_callback, *args):
+        assert which_callback=="before_epoch"
+        logger.info("loading from savepoint (%s/*/%s)"%(self.directory, self.place))
+
+        log_path = os.path.join(self.directory, "logs", self.place+".pkl")
+        self.main_loop.log = cPickle.load(open(log_path))
+
+        params_path = os.path.join(self.directory, "params", self.place+".npz")
+        parameter_values = load_parameter_values(params_path)
+        self.main_loop.model.set_parameter_values(parameter_values)
+
+        algorithm_path = os.path.join(self.directory, "algorithm_params", self.place+".npz")
+        algorithm_values = load_parameter_values(algorithm_path)
+        set_algorithm_parameters_values(self.main_loop.algorithm,
+                                       self.main_loop.model,
+                                       algorithm_values)
+
+class DirectoryCreator(SimpleExtension):
+    def __init__(self, directory, **kwargs):
+        if os.path.exists(directory):
+            time_string = datetime.datetime.now().strftime('%m-%d-%H-%M-%S')
+            move_to = directory + time_string + "_backup"
+            shutil.move(directory, move_to)
+        os.mkdir(directory)
+        super(DirectoryCreator, self).__init__(**kwargs)
+
+    def do(self, which_callback, *args):
+        pass
+
+class SourceSaver(SimpleExtension):
     """
-    Save a given experiment to a file
-    * dump the current source directory
-    * save parameters
-    * dump the training logs
+    Save the source to a given folder
 
     Parameters
     ---------
@@ -64,37 +148,19 @@ class ExperimentSaver(SimpleExtension):
         Path to dump the experiment.
     src_directory: basestring
         Path to source to be copied.
-    config: dict
-        python dictionary representing configs
     """
 
-    def __init__(self, dest_directory, src_directory, config={}, **kwargs):
+    def __init__(self, dest_directory, src_directory, **kwargs):
         self.dest_directory = dest_directory
         self.src_directory = src_directory
-        self.config = config
 
         self.params_path = os.path.join(self.dest_directory, 'params')
-        self.log_path = os.path.join(self.dest_directory, 'log.csv')
-
         self.write_src()
-        self.write_config()
 
-        super(ExperimentSaver, self).__init__(**kwargs)
-
-    def params_path_for_epoch(self, i):
-        return os.path.join(self.params_path, str(i))
+        super(SourceSaver, self).__init__(**kwargs)
 
     def write_src(self):
-        # Don't overwrite anything, move it to a backup folder
-        if os.path.exists(self.dest_directory):
-            import ipdb
-            time_string = datetime.datetime.now().strftime('%m-%d-%H-%M-%S')
-            move_to = self.dest_directory + time_string + "_backup"
-            shutil.move(self.dest_directory, move_to)
-
-        os.mkdir(self.dest_directory)
         src_path = os.path.join(self.dest_directory, 'src')
-
         os.mkdir(self.params_path)
 
         def ignore(path, names):
@@ -106,17 +172,8 @@ class ExperimentSaver(SimpleExtension):
 
         shutil.copytree(self.src_directory, src_path, ignore=ignore)
 
-    def write_config(self):
-        json.dump(self.config, open(os.path.join(self.dest_directory, 'config.json'), 'w+'))
-
     def do(self, which_callback, *args):
-        log = self.main_loop.log
-        epoch_done = log.status['epochs_done']
-        params = self.main_loop.model.get_parameter_values()
-        path = self.params_path_for_epoch(epoch_done)
-        save_parameter_values(params, path)
-
-        pd.DataFrame.from_dict(log, orient='index').to_csv(self.log_path)
+        pass
 
 class UserFunc(SimpleExtension):
     """
