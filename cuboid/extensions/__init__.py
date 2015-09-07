@@ -63,7 +63,7 @@ class SavePoint(SimpleExtension):
         super(SavePoint, self).__init__(**kwargs)
         self.dest_directory = dest_directory
 
-        sub_folders = ['params', 'algorithm_params', 'logs', 'status']
+        sub_folders = ['params', 'algorithm_params', 'logs']
         for s in sub_folders:
             path = os.path.join(self.dest_directory, s)
             if not os.path.exists(path):
@@ -89,8 +89,6 @@ class SavePoint(SimpleExtension):
                                                    "%s_%d.npz"%(prefix, done))
         output_log_path = os.path.join(self.dest_directory, "logs",
                                                             "%s_%d.pkl"%(prefix, done))
-        output_status_path = os.path.join(self.dest_directory, "status",
-                                                            "%s_%d.pkl"%(prefix, done))
 
         params = model.get_parameter_values()
         save_parameter_values(params, output_param_path)
@@ -99,7 +97,6 @@ class SavePoint(SimpleExtension):
         save_parameter_values(algorithm_params, output_algorithm_param_path)
 
         cPickle.dump(log, open(output_log_path, 'w'))
-        cPickle.dump(status, open(output_status_path, 'w'))
 
         logger.info("Wrote new savepoint to (%s)"%self.dest_directory)
 
@@ -128,6 +125,8 @@ class Resume(SimpleExtension):
 
 class DirectoryCreator(SimpleExtension):
     def __init__(self, directory, **kwargs):
+        if directory[-1] == "/":
+            directory = directory[:-1]
         if os.path.exists(directory):
             time_string = datetime.datetime.now().strftime('%m-%d-%H-%M-%S')
             move_to = directory + time_string + "_backup"
