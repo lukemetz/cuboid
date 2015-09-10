@@ -94,6 +94,7 @@ class SavePoint(SimpleExtension):
         save_parameter_values(params, output_param_path)
 
         algorithm_params = get_algorithm_parameters_values(algorithm, model)
+
         save_parameter_values(algorithm_params, output_algorithm_param_path)
 
         cPickle.dump(log, open(output_log_path, 'w'))
@@ -104,24 +105,27 @@ class Resume(SimpleExtension):
     def __init__(self, directory, place, **kwargs):
         self.directory = directory
         self.place = place
+        self.has_resumed = False
         super(Resume, self).__init__(before_epoch=True)
 
     def do(self, which_callback, *args):
-        assert which_callback=="before_epoch"
-        logger.info("loading from savepoint (%s/*/%s)"%(self.directory, self.place))
+        if self.has_resumed == False:
+            self.has_resumed = True
+            assert which_callback=="before_epoch"
+            logger.info("loading from savepoint (%s/*/%s)"%(self.directory, self.place))
 
-        log_path = os.path.join(self.directory, "logs", self.place+".pkl")
-        self.main_loop.log = cPickle.load(open(log_path))
+            log_path = os.path.join(self.directory, "logs", self.place+".pkl")
+            self.main_loop.log = cPickle.load(open(log_path))
 
-        params_path = os.path.join(self.directory, "params", self.place+".npz")
-        parameter_values = load_parameter_values(params_path)
-        self.main_loop.model.set_parameter_values(parameter_values)
+            params_path = os.path.join(self.directory, "params", self.place+".npz")
+            parameter_values = load_parameter_values(params_path)
+            self.main_loop.model.set_parameter_values(parameter_values)
 
-        algorithm_path = os.path.join(self.directory, "algorithm_params", self.place+".npz")
-        algorithm_values = load_parameter_values(algorithm_path)
-        set_algorithm_parameters_values(self.main_loop.algorithm,
-                                       self.main_loop.model,
-                                       algorithm_values)
+            algorithm_path = os.path.join(self.directory, "algorithm_params", self.place+".npz")
+            algorithm_values = load_parameter_values(algorithm_path)
+            set_algorithm_parameters_values(self.main_loop.algorithm,
+                                           self.main_loop.model,
+                                           algorithm_values)
 
 class DirectoryCreator(SimpleExtension):
     def __init__(self, directory, **kwargs):
@@ -189,3 +193,18 @@ class UserFunc(SimpleExtension):
 
     def do(self, which_callback, *args):
         self.func(self)
+
+class Profile(SimpleExtension):
+    def __init__(self, **kwargs):
+        kwargs.setdefault('before_first_epoch', True)
+        kwargs.setdefault('after_epoch', True)
+        super(Profile, self).__init__(**kwargs)
+
+    def do(self, which_callback, *args):
+        current_row = self.main_loop.log.current_row
+        profile = self.main_loop.profile.total
+
+        total = sum(v for k, v in profile.items() if len(k) == 1)
+        for name,val in profile.items():
+            current_row["profile_"+"_".join(name)] = val
+        current_row["profile_total"] = total

@@ -17,7 +17,7 @@ from blocks.extensions import FinishAfter
 from blocks.roles import add_role, PARAMETER
 
 from cuboid.extensions import (SourceSaver, UserFunc, LogToFile,
-    ExamplesPerSecond, SavePoint, Resume, DirectoryCreator)
+    ExamplesPerSecond, SavePoint, Resume, DirectoryCreator, Profile)
 
 floatX = theano.config.floatX
 
@@ -84,9 +84,7 @@ def test_save_load():
 
     W = main_loop.model.get_parameter_dict().values()[0]
     value = W.get_value()
-    lr = main_loop.algorithm.step_rule.learning_rate.get_value()
-    assert_allclose(lr, 0.2)
-    assert_allclose(value, [9.22131157, 10.17465496])
+    assert_allclose(value, [29.273739,  30.059032])
 
     shutil.rmtree('savePointTest')
 
@@ -117,3 +115,10 @@ def test_user_func():
 
     main_loop.run()
     assert called[0]==True
+
+def test_profile():
+    user_func = Profile(after_epoch=True)
+    main_loop = setup_mainloop([user_func])
+
+    main_loop.run()
+    assert 'profile_training_epoch_after_batch_Profile' in main_loop.log.current_row

@@ -69,7 +69,10 @@ def save_parameter_values(param_values, path):
     """
     param_values = {name.replace("/", "-"): param
                     for name, param in param_values.items()}
-    numpy.savez(path, **param_values)
+    if len(param_values.items()) == 0:
+        numpy.savez(path, __placeholder=None)
+    else:
+        numpy.savez(path, **param_values)
 
 
 def load_parameter_values(path):
@@ -90,7 +93,7 @@ def load_parameter_values(path):
     """
     source = numpy.load(path)
     param_values = {name.replace("-", "/"): value
-                    for name, value in source.items()}
+                    for name, value in source.items() if name != "__placeholder"}
     source.close()
     return param_values
 

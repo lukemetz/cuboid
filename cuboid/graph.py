@@ -1,6 +1,6 @@
 from blocks.utils import named_copy
 from blocks.filter import VariableFilter
-from blocks.roles import ALGORITHM_STATE
+from blocks.roles import ALGORITHM_BUFFER
 from blocks.graph import ComputationGraph
 from collections import OrderedDict
 import logging
@@ -40,7 +40,7 @@ def get_algorithm_parameters_dict(algorithm, model):
 
     for val, update in algorithm.steps.items():
         cg = ComputationGraph([update])
-        shared_to_save = VariableFilter(roles=[ALGORITHM_STATE])(cg)
+        shared_to_save = VariableFilter(roles=[ALGORITHM_BUFFER])(cg)
 
         parent_name = var_to_name[val]
         for k in shared_to_save:
