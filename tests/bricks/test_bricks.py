@@ -193,7 +193,7 @@ def test_defaults_sequence1():
 
 def test_defaults_sequence2():
     seq = DefaultsSequence(input_dim=(3, 4, 4), lists=[
-        Convolutional(num_filters=10, step=(2,2), filter_size=(3,3)),
+        Convolutional(num_filters=10, stride=(2,2), filter_size=(3,3)),
         BatchNormalization(),
         Rectifier(),
         Flattener(),

@@ -137,8 +137,8 @@ class BatchNormalization(Brick):
 srng = RandomStreams(seed=32)
 
 class Dropout(Random):
-    @lazy(allocation=['p_drop', 'input_dim'])
-    def __init__(self, p_drop, input_dim, **kwargs):
+    @lazy(allocation=['p_drop'])
+    def __init__(self, p_drop, input_dim=None, **kwargs):
         super(Dropout, self).__init__(**kwargs)
         self.p_drop = p_drop
 
@@ -152,7 +152,7 @@ class Dropout(Random):
             return input_
 
     def get_dim(self, name):
-        if name in ['input_', 'output']:
+        if name in ['input_', 'output'] and self.input_dim != None:
             return self.input_dim
         else:
             return super(Dropout, self).get_dim(name)
