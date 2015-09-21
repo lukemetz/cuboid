@@ -38,12 +38,13 @@ def test_batchnormconv_training():
 
 def test_batchnorm_infer():
     layer = BatchNormalization(input_dim = (4, 5, 5))
+    layer.accumulate = True
     layer.initialize()
     x = T.tensor4("features")
     x_val = [np.ones((6, 4, 5, 5), dtype=theano.config.floatX) for _ in range(2)]
     x_val[0][0,0,0,0] = 10.0
     x_val[1][0,0,0,0] = -200.0
-    y = layer.apply(x, with_accumulation=True)
+    y = layer.apply(x)
 
     dataset = IterableDataset(dict(features=x_val))
     data_stream = DataStream(dataset)
@@ -57,12 +58,13 @@ def test_batchnorm_infer():
 
 def test_batchnorm_get_set():
     layer = BatchNormalization(input_dim = (4, 5, 5))
+    layer.accumulate = True
     layer.initialize()
     x = T.tensor4("features")
     x_val = [np.ones((6, 4, 5, 5), dtype=theano.config.floatX) for _ in range(2)]
     x_val[0][0,0,0,0] = 10.0
     x_val[1][0,0,0,0] = -200.0
-    y = layer.apply(x, with_accumulation=True)
+    y = layer.apply(x)
 
     dataset = IterableDataset(dict(features=x_val))
     data_stream = DataStream(dataset)

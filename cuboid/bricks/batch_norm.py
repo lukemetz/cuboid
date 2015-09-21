@@ -16,7 +16,7 @@ import theano
 import logging
 from collections import OrderedDict
 from cuboid.graph import get_parameter_name
-from blocks.extensions import FinishAfter
+from blocks.extensions import FinishAfter, ProgressBar
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +31,12 @@ class BatchNormalization(Brick):
     seed_rng = np.random.RandomState(config.default_seed)
 
     @lazy(allocation=['input_dim'])
-    def __init__(self, input_dim, epsilon=1e-8, use_population=False, **kwargs):
+    def __init__(self, input_dim, epsilon=1e-8, use_population=False, accumulate=False, **kwargs):
         super(BatchNormalization, self).__init__(**kwargs)
         self.input_dim = input_dim
         self.use_population = use_population
         self.e = epsilon
-
+        self.accumulate = accumulate
     @property
     def seed(self):
         if getattr(self, '_seed', None) is not None:
@@ -99,7 +99,7 @@ class BatchNormalization(Brick):
         Constant(0).initialize(self.n, self.rng)
 
     @application(inputs=['input_'], outputs=['output'])
-    def apply(self, input_, with_accumulation=False):
+    def apply(self, input_):
         X = input_
         naxes = self.naxes
         if naxes == 4: #CNN
@@ -140,7 +140,7 @@ class BatchNormalization(Brick):
         else:
             raise NotImplementedError
 
-        if with_accumulation:
+        if self.accumulate:
             if self.use_population == True:
                 raise Exception("use_population is set to true as well as with accumulation. ",
                     "This is not possible as there is nothing to take the population of.")
@@ -184,14 +184,14 @@ class BatchNormAccumulate(TrainingAlgorithm):
             assert b.n.get_value() == 0
 
         if set(update_parameters) != set(self.parameters):
-            raise ValueError("The updates and the parameters passed in do"
-                "not match")
+            raise ValueError("The updates and the parameters passed in do "
+                "not match. This could be due to no applications or multiple applications "
+                "found %d updates, and %d parameters"%(len(update_parameters), len(self.parameters)))
 
         updates = dict_union(*[b.updates for b in bricks_seen])
 
         logger.info("Compiling BatchNorm accumulate")
-
-        self._func = theano.function(self.inputs, [], updates=updates)
+        self._func = theano.function(self.inputs, [], updates=updates, on_unused_input="warn")
 
         super(BatchNormAccumulate, self).initialize(**kwargs)
 
@@ -223,14 +223,12 @@ def infer_population(data_stream, model, n_batches):
         algorithm=algorithm,
         data_stream=data_stream,
         model=model,
-        extensions=[FinishAfter(after_n_batches=n_batches)])
+        extensions=[FinishAfter(after_n_batches=n_batches), ProgressBar()])
     main_loop.run()
 
     batchnorm_bricks = set([get_brick(p) for p in get_batchnorm_parameters(model)])
     for b in batchnorm_bricks:
         b.use_population = True
-
-
 
 def get_batchnorm_parameter_dict(model):
     parameters = get_batchnorm_parameters(model)
