@@ -3,6 +3,8 @@ from blocks.roles import ALGORITHM_BUFFER
 from blocks.graph import ComputationGraph
 from collections import OrderedDict
 import logging
+from blocks.select import Path
+from blocks.filter import get_brick
 
 logger = logging.getLogger(__name__)
 
@@ -65,3 +67,15 @@ def set_algorithm_parameters_values(algorithm, model, values_dict):
     for name, value in values_dict.items():
         if name in parameters_dict:
             parameters_dict[name].set_value(value)
+
+
+def _get_name(brick):
+    if len(brick.parents) > 0:
+        return _get_name(brick.parents[0]) + Path.BrickName(brick.name)
+    elif len(brick.parents) == 0:
+        return Path.BrickName(brick.name).part()
+    else:
+        raise ValueError("Only one parent per brick supported at this time. (%s)"%str(brick))
+
+def get_parameter_name(parameter):
+    return _get_name(get_brick(parameter))+ Path.ParameterName(parameter).part()
