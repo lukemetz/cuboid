@@ -5,6 +5,8 @@ from collections import OrderedDict
 import logging
 from blocks.select import Path
 from blocks.filter import get_brick
+from blocks.bricks.base import Brick
+from blocks.model import Model
 
 logger = logging.getLogger(__name__)
 
@@ -79,3 +81,29 @@ def _get_name(brick):
 
 def get_parameter_name(parameter):
     return _get_name(get_brick(parameter))+ Path.ParameterName(parameter).part()
+
+def _get_children_bricks(brick):
+    bricks = []
+    for c in brick.children:
+        bricks.extend(_get_children_bricks(c))
+    return [brick] + bricks
+
+def get_bricks(model):
+    """ Return list of bricks
+    Parameters:
+    ---------
+    model: blocks.brick.base.Brick or blocks.model.Model
+
+    """
+    bricks = []
+    if isinstance(model, Model):
+        for top in model.get_top_bricks():
+            bricks.extend(_get_children_bricks(top))
+    elif isinstance(model, Brick):
+        bricks.extend(_get_children_bricks(model))
+    else:
+        raise AttributeError("No implementation for type %s"%type(model))
+    return list(set(bricks))
+
+def get_bricks_matching(model, predicate):
+    return [b for b in get_bricks(model) if predicate(b)]
