@@ -20,7 +20,6 @@ from blocks.extensions import FinishAfter, ProgressBar
 
 logger = logging.getLogger(__name__)
 
-
 class BatchNormPopulationRole(AuxiliaryRole):
     pass
 
@@ -102,37 +101,38 @@ class BatchNormalization(Brick):
     def apply(self, input_):
         X = input_
         naxes = self.naxes
+        broadcast_n = T.addbroadcast(self.n, 0)
         if naxes == 4: #CNN
             if self.use_population:
-                u = self.u/self.n
+                u = self.u/broadcast_n
             else:
                 u = T.mean(X, axis=[0, 2, 3])
             b_u = u.dimshuffle('x', 0, 'x', 'x')
             if self.use_population:
-                s = self.s/self.n
+                s = self.s/broadcast_n
             else:
                 s = T.mean(T.sqr(X - b_u), axis=[0, 2, 3])
             X = (X - b_u) / T.sqrt(s.dimshuffle('x', 0, 'x', 'x') + self.e)
             X = self.g.dimshuffle('x', 0, 'x', 'x')*X + self.b.dimshuffle('x', 0, 'x', 'x')
         elif naxes == 3: #RNN
             if self.use_population:
-                u = self.u/self.n
+                u = self.u/broadcast_n
             else:
                 u = T.mean(X, axis=[0, 1])
             b_u = u.dimshuffle('x', 'x', 0)
             if self.use_population:
-                s = self.s/self.n
+                s = self.s/broadcast_n
             else:
                 s = T.mean(T.sqr(X - b_u), axis=[0, 1])
             X = (X - b_u) / T.sqrt(s.dimshuffle('x', 'x', 0) + self.e)
             X = self.g.dimshuffle('x', 'x', 0)*X + self.b.dimshuffle('x', 'x', 0)
         elif naxes == 2: #FC
             if self.use_population:
-                u = self.u/self.n
+                u = self.u/broadcast_n
             else:
                 u = T.mean(X, axis=0)
             if self.use_population:
-                s = self.s/self.n
+                s = self.s/broadcast_n
             else:
                 s = T.mean(T.sqr(X - u), axis=0)
             X = (X - u) / T.sqrt(s + self.e)
