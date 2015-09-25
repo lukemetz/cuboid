@@ -108,12 +108,18 @@ class Convolutional(Initializable):
 
     def get_dim(self, name):
         if name == "output":
-            ishape = (self.input_dim[0], 'x', self.input_dim[1], self.input_dim[2])
-            kshape = (self.num_filters, 'x', self.filter_size[0], self.filter_size[1])
-            border_mode = self.pad
-            subsample = self.stride
-            oshape = GpuDnnConv.get_out_shape(ishape, kshape, border_mode, subsample)
-            return (oshape[1], oshape[2], oshape[3])
+            i1_type = type(self.input_dim[1])
+            i2_type = type(self.input_dim[2])
+            if  i1_type != str and i2_type != str:
+                ishape = (self.input_dim[0], 'x', self.input_dim[1], self.input_dim[2])
+                kshape = (self.num_filters, 'x', self.filter_size[0], self.filter_size[1])
+                border_mode = self.pad
+                subsample = self.stride
+                oshape = GpuDnnConv.get_out_shape(ishape, kshape, border_mode, subsample)
+                return (oshape[1], oshape[2], oshape[3])
+            else:
+                # TODO manage the case where either input_dim[{1, 2}] is not a str
+                return (self.num_filters, self.input_dim[1], self.input_dim[2])
         else:
             return super(Conv1D, self).get_dim(name)
 
@@ -255,6 +261,10 @@ class Flattener(Brick):
     def get_dim(self, name):
         if name == "output":
             if self.input_dim:
+                if not all([type(t) != str for t in self.input_dim]):
+                    raise AttributeError("Cannot pass in variable lengths"
+                        "to Flattener. The input shape gotten is %s" % str(self.input_dim))
+
                 return np.prod(self.input_dim)
             else:
                 raise ValueError("No input_dim set on Flattener")

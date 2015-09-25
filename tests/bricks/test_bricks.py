@@ -131,6 +131,27 @@ def test_defaults_sequence2():
     res = func_(x_val)[0]
     assert_allclose(res.shape, (1, 12))
 
+def test_defaults_sequence_no_input_dims():
+    seq = DefaultsSequence(input_dim=(3, 'x', 'x'), lists=[
+        Convolutional(num_filters=10, stride=(2,2), filter_size=(3,3)),
+        BatchNormalization(),
+        Rectifier(),
+        Convolutional(num_filters=10, stride=(2,2), filter_size=(3,3)),
+    ])
+    seq.weights_init=Constant(1.0)
+    seq.biases_init=Constant(0.0)
+    seq.push_allocation_config()
+    seq.push_initialization_config()
+    seq.initialize()
+
+    x = T.tensor4('input')
+    y = seq.apply(x)
+    func_ = theano.function([x], [y])
+
+    x_val = np.ones((1, 3, 7, 7), dtype=theano.config.floatX)
+    res = func_(x_val)[0]
+    assert_allclose(res.shape, (1, 10, 2, 2))
+
 def test_flattener():
     x = T.tensor4()
     flattener = Flattener(input_dim=(2,3,4))
