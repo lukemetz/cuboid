@@ -261,7 +261,9 @@ class Flattener(Brick):
     def get_dim(self, name):
         if name == "output":
             if self.input_dim:
-                if not all([type(t) != str for t in self.input_dim]):
+                # TODO fix this awful hack
+                if hasattr(self.input_dim, "__iter__") and\
+                        not all([type(t) != str for t in self.input_dim]):
                     raise AttributeError("Cannot pass in variable lengths"
                         "to Flattener. The input shape gotten is %s" % str(self.input_dim))
 
