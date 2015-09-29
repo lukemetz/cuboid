@@ -3,13 +3,14 @@ import theano
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
-from cuboid.bricks import Dropout, FilterPool
+from cuboid.bricks import Dropout, FilterPool, Highway
 from cuboid.bricks.batch_norm import BatchNormalization
 from cuboid.bricks import LeakyRectifier, FuncBrick, DefaultsSequence
 from cuboid.bricks import Convolutional, Flattener, MaxPooling
 
 from blocks.initialization import Constant
-from blocks.bricks import Linear, Rectifier
+from blocks.initialization import Identity as init_Identity
+from blocks.bricks import Linear, Rectifier, Identity, Tanh
 
 def test_dropout():
     layer = Dropout(p_drop=0.1)
@@ -163,3 +164,39 @@ def test_flattener():
     assert_allclose(ret.shape, (3, 24))
 
     assert flattener.get_dim("output") == 24
+
+def test_highway_dimensions():
+    x = T.matrix()
+    highway = Highway(input_dim=100)
+    y = highway.apply(x)
+    _func = theano.function([x], y)
+    x_val = np.ones((4,100), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret.shape, (4,100))
+
+def test_highway_carry():
+    x = T.matrix()
+    highway = Highway(input_dim=100, output_activation=Tanh(), transform_activation=Identity())
+    highway.biases_init = Constant(0.0)
+    highway.weights_init = Constant(1.0)
+    y = highway.apply(x)
+    highway.push_initialization_config()
+    highway.children[1].weights_init = Constant(0.0)
+    highway.initialize()
+    _func = theano.function([x], y)
+    x_val = np.ones((4,100), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret, np.ones((4,100)))
+
+def test_highway_activation():
+    x = T.matrix()
+    highway = Highway(input_dim=100, output_activation=Tanh(), transform_activation=Identity())
+    highway.biases_init = Constant(0.0)
+    highway.weights_init = init_Identity()
+    y = highway.apply(x)
+    highway.initialize()
+    _func = theano.function([x], y)
+    x_val = np.ones((4,100), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret, np.tanh(np.ones((4,100))))
+

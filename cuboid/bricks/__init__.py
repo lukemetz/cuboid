@@ -1,5 +1,6 @@
 from blocks.bricks import (Brick, Random, Sequence,\
-    Feedforward, Initializable, Activation, FeedforwardSequence, Activation, Softmax)
+    Feedforward, Initializable, Activation, FeedforwardSequence, Activation, Softmax,\
+    Linear, Rectifier, Logistic)
 from blocks.bricks.base import lazy, application
 from blocks.bricks import conv
 from blocks.initialization import Constant, NdarrayInitialization
@@ -272,3 +273,46 @@ class Flattener(Brick):
                 raise ValueError("No input_dim set on Flattener")
         else:
             return super(Flattener, self).get_dim(name)
+
+class Highway(Initializable, Feedforward):
+    """ Implements highway networks outlined in [1]
+
+    y = H(x,WH)T(x,WT) + x(1-T(x,WT))
+    
+    Highway networks have the same input dimension and output dimension
+    
+    Parameters
+    ----------
+    input_dim: int
+        number of input/output dimensions for the network
+    output_activation: Activation
+        activation function applied to x and the hidden weights
+    transform_activation: Activation
+        activation function applied to x and the transform weights
+    [1] http://arxiv.org/pdf/1505.00387v1.pdf
+    """
+
+    @lazy(allocation=['input_dim'])
+    def __init__(self, input_dim, output_activation=None, transform_activation=None, **kwargs):
+        super(Highway, self).__init__(**kwargs)
+        self.input_dim = input_dim
+        self.output_dim = input_dim
+
+        if output_activation == None:
+            output_activation = Rectifier()
+
+        if transform_activation == None:
+            transform_activation = Logistic()
+
+        self._linear_h = Linear(name="linear_h", input_dim=input_dim, output_dim=input_dim)
+        self._linear_t = Linear(name="linear_t", input_dim=input_dim, output_dim=input_dim)
+        self._output_activation = output_activation
+        self._transform_activation = transform_activation
+        self.children = [self._linear_h, self._linear_t, self._output_activation, self._transform_activation]
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        h = self._output_activation.apply(self._linear_h.apply(input_))
+        t = self._transform_activation.apply(self._linear_t.apply(input_))
+
+        return h*t+input_*(1-t)
