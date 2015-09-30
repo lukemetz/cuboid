@@ -218,13 +218,6 @@ class DefaultsSequence(FeedforwardSequence, Initializable):
                         not isinstance(child.biases_init, NdarrayInitialization)):
                     child.biases_init = self.biases_init
 
-        self.names = {}
-        for child in self.children:
-            if child.name in self.names:
-                self.names[child.name] += 1
-                child.name += "_" + str(self.names[child.name])
-            else:
-                self.names[child.name] = 0
 
     def _push_allocation_config(self):
         input_dim = self.input_dim
@@ -237,6 +230,14 @@ class DefaultsSequence(FeedforwardSequence, Initializable):
                 input_dim = brick.get_dim(brick.apply.outputs[0])
 
         self.output_dim = input_dim
+
+        self.names = {}
+        for child in self.children:
+            if child.name in self.names:
+                self.names[child.name] += 1
+                child.name += "_" + str(self.names[child.name])
+            else:
+                self.names[child.name] = 0
 
     def get_dim(self, name):
         if name == "output":
