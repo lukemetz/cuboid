@@ -36,16 +36,17 @@ class LogToFile(SimpleExtension):
         frame.to_csv(self.file_path)
 
 class ExamplesPerSecond(TrainingExtension):
-    def __init__(self, roll=10):
+    def __init__(self, roll=10, batch_idx=0):
         self.example_accumulator = []
         self.last_time = time.time()
         self.times = []
         self.batches_seen = 0
         self.roll = roll
+        self.batch_idx = batch_idx
         super(ExamplesPerSecond, self).__init__()
 
     def after_batch(self, batch):
-        batch_size = len(batch.values()[0])
+        batch_size = len(batch.values()[self.batch_idx])
         self.example_accumulator.append(batch_size)
         if len(self.example_accumulator) > self.roll:
             self.example_accumulator.pop(0)
