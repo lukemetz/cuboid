@@ -14,6 +14,9 @@ from blocks.utils import shared_floatx
 from blocks.model import Model
 
 from blocks.extensions import FinishAfter
+from cuboid.extensions.variable_modifiers import (ExponentialDecay, StepDecay, 
+    InverseDecay, PolynomialDecay, 
+    SigmoidDecay, LinearDecay, ComposeDecay)
 from blocks.roles import add_role, PARAMETER
 
 from cuboid.extensions import (SourceSaver, UserFunc, LogToFile,
@@ -122,3 +125,60 @@ def test_profile():
 
     main_loop.run()
     assert 'profile_training_epoch_after_batch_Profile' in main_loop.log.current_row
+
+def test_exponential_decay():
+    lr = shared_floatx(100.0)
+    decay = ExponentialDecay(lr,0.01)
+    assert_allclose( decay.compute_value(0), 100.0)
+    assert_allclose( decay.compute_value(100), 36.787944117144235)
+
+def test_step_decay():
+    lr = shared_floatx(100.0)
+    decay = StepDecay(lr,[25, 50],.5)
+    assert_allclose( decay.compute_value(0), 100.0)
+    assert_allclose( decay.compute_value(100), 25.0)
+
+def test_inverse_decay():
+    lr = shared_floatx(100.0)
+    decay = InverseDecay(lr,.01,.5)
+    assert_allclose( decay.compute_value(0), 100.0)
+    assert_allclose( decay.compute_value(100), 70.71067811865476)
+
+def test_polynomial_decay():
+    lr = shared_floatx(100.0)
+    decay = PolynomialDecay(lr,100.0,1.0)
+    assert_allclose( decay.compute_value(0), 100.0)
+    assert_allclose( decay.compute_value(50), 50.0)
+    assert_allclose( decay.compute_value(100), 0.0)
+    assert_allclose( decay.compute_value(200), 0.0)
+
+def test_sigmoid_decay():
+    lr = shared_floatx(100.0)
+    decay = SigmoidDecay(lr,.1,50)
+    assert_allclose( decay.compute_value(0), 99.3307113647461)
+    assert_allclose( decay.compute_value(50), 50.0)
+    assert_allclose( decay.compute_value(100), 0.6692851185798645)
+
+def test_linear_decay():
+    lr = shared_floatx(100.0)
+    decay = LinearDecay(lr,1.0)
+    assert_allclose( decay.compute_value(0.0), 100.0)
+    assert_allclose( decay.compute_value(50), 50.0)
+    assert_allclose( decay.compute_value(100), 0.0)
+    assert_allclose( decay.compute_value(200), 0.0)
+
+def test_compose_decay():
+    lr = shared_floatx(100.0)
+    decay = ComposeDecay([LinearDecay(lr, 1.0), LinearDecay(lr,2.0), LinearDecay(lr,1.0)],[10,20])
+    assert_allclose( decay.compute_value(0), 100.0)
+    assert_allclose( decay.compute_value(10), 90.0)
+    assert_allclose( decay.compute_value(90), 0.0)
+
+def test_compose_decay_copy():
+    lr = shared_floatx(100.0)
+    linear1 = LinearDecay(lr, 1.0)
+    linear2 = LinearDecay(lr, 1.0)
+    decay = ComposeDecay([linear1,linear2],[10])
+    assert (decay.variable_modifiers != [linear1,linear2])
+    assert(linear2.initial_value == 100.0)
+    assert(decay.variable_modifiers[1].initial_value == 90.0)
