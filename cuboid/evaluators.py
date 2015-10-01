@@ -1,8 +1,9 @@
 from blocks.graph import ComputationGraph
 from collections import OrderedDict
 import theano
-from blocks.utils import dict_subset
+from blocks.utils import dict_subset, reraise_as
 import numpy as np
+
 
 class DataStreamEvaluator(object):
     """ Evaluate a datastream for paticular variables.
@@ -31,12 +32,12 @@ class DataStreamEvaluator(object):
             datastream to run computation on
         """
         accumulate_dict = OrderedDict([(var.name, []) for var in self.outputs])
-        if self._func == None:
+        if self._func is None:
             self._compile()
         for batch in data_stream.get_epoch_iterator(as_dict=True):
             self.process_batch(batch, accumulate_dict)
 
-        for key,value in accumulate_dict.items():
+        for key, value in accumulate_dict.items():
             accumulate_dict[key] = np.concatenate(value, axis=0)
         return accumulate_dict
 
@@ -51,7 +52,7 @@ class DataStreamEvaluator(object):
                 " {}.".format(input_names))
         results_list = self._func(**batch)
         output_names = [v.name for v in self.outputs]
-        for name,res in zip(output_names, results_list):
+        for name, res in zip(output_names, results_list):
             accumulate_dict[name].append(res)
 
     def _compile(self):
