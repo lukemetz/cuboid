@@ -1,14 +1,12 @@
-# Taken directly from older version of blocks with many deletions and modifications.
+# Taken directly from older version of blocks with many deletions
+# and modifications.
 
 import logging
-import os
-import os.path
 
 import numpy
-from six.moves import cPickle
-import ipdb
 
 logger = logging.getLogger(__name__)
+
 
 def save_parameter_values(param_values, path):
     """Compactly save parameter values.
@@ -31,6 +29,7 @@ def save_parameter_values(param_values, path):
     else:
         numpy.savez(path, **param_values)
 
+
 def load_parameter_values(path):
     """Load parameter values saved by :func:`save_parameters`.
 
@@ -49,6 +48,7 @@ def load_parameter_values(path):
     """
     source = numpy.load(path)
     param_values = {name.replace("-", "/"): value
-                    for name, value in source.items() if name != "__placeholder"}
+                    for name, value in source.items()
+                    if name != "__placeholder"}
     source.close()
     return param_values

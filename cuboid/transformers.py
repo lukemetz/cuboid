@@ -1,5 +1,6 @@
 from fuel.transformers import Transformer
 
+
 class DropSources(Transformer):
     """Drops some sources from a stream
 
@@ -17,7 +18,7 @@ class DropSources(Transformer):
 
         cur_sources = old_sources[:]
 
-        for i,s in enumerate(sources):
+        for i, s in enumerate(sources):
             if s not in cur_sources:
                 raise KeyError("%s not in the sources of the stream" % s)
             else:
@@ -29,5 +30,6 @@ class DropSources(Transformer):
         if request is not None:
             raise ValueError
         data = next(self.child_epoch_iterator)
-        new_data = tuple([source for source,mask in zip(data, self.mask) if mask==True ])
+        new_data = tuple([source for source, mask in zip(data, self.mask)
+                          if mask])
         return new_data

@@ -2,20 +2,20 @@ import shutil
 import os
 
 from cuboid.dump import save_parameter_values, load_parameter_values
-from cuboid.graph import get_algorithm_parameters_values, set_algorithm_parameters_values
+from cuboid.graph import (get_algorithm_parameters_values,
+                          set_algorithm_parameters_values)
 
 import datetime
 import pandas as pd
-import ipdb
 
 from blocks.extensions import SimpleExtension, TrainingExtension
-import json
 import time
 import numpy as np
 import cPickle
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class LogToFile(SimpleExtension):
     """
@@ -28,12 +28,13 @@ class LogToFile(SimpleExtension):
 
     def do(self, which_callback, *args):
         log = self.main_loop.log
-        for k,v in log.status.items():
+        for k, v in log.status.items():
             if k[0] != '_':
                 log.current_row[k] = v
         frame = pd.DataFrame.from_dict(log, orient='index')
         frame.index.name = "iterations"
         frame.to_csv(self.file_path)
+
 
 class ExamplesPerSecond(TrainingExtension):
     def __init__(self, roll=10, batch_idx=0):
@@ -52,12 +53,15 @@ class ExamplesPerSecond(TrainingExtension):
             self.example_accumulator.pop(0)
 
         new_time = time.time()
-        examples_per_second = np.sum(self.example_accumulator) / (np.sum(self.times))
-        self.main_loop.log.current_row['examples_per_second'] = examples_per_second
+        examples_per_second = np.sum(self.example_accumulator) /\
+                                    (np.sum(self.times))
+        log = self.main_loop.log
+        log.current_row['examples_per_second'] = examples_per_second
         self.times.append(new_time - self.last_time)
         self.last_time = new_time
         if len(self.times) > self.roll:
             self.times.pop(0)
+
 
 class SavePoint(SimpleExtension):
     def __init__(self, dest_directory, **kwargs):
@@ -72,24 +76,27 @@ class SavePoint(SimpleExtension):
 
     def do(self, which_callback, *args):
         log = self.main_loop.log
-        status = self.main_loop.status
         algorithm = self.main_loop.algorithm
         model = self.main_loop.model
 
-        if which_callback=="after_epoch":
+        if which_callback == "after_epoch":
             done = log.status['epochs_done']
             prefix = "epoch"
-        elif which_callback=="after_batch":
+        elif which_callback == "after_batch":
             done = log.status['iterations_done']
             prefix = "iterations"
 
         output_param_path = os.path.join(self.dest_directory, "params",
-                                         "%s_%d.npz"%(prefix, done))
+                                         "%s_%d.npz" % (prefix, done))
+
         output_algorithm_param_path = os.path.join(self.dest_directory,
                                                    "algorithm_params",
-                                                   "%s_%d.npz"%(prefix, done))
+                                                   "%s_%d.npz" %
+                                                   (prefix, done))
+
         output_log_path = os.path.join(self.dest_directory, "logs",
-                                                            "%s_%d.pkl"%(prefix, done))
+                                                            "%s_%d.pkl" %
+                                                            (prefix, done))
 
         params = model.get_parameter_values()
         save_parameter_values(params, output_param_path)
@@ -100,7 +107,8 @@ class SavePoint(SimpleExtension):
 
         cPickle.dump(log, open(output_log_path, 'w'))
 
-        logger.info("Wrote new savepoint to (%s)"%self.dest_directory)
+        logger.info("Wrote new savepoint to (%s)" % self.dest_directory)
+
 
 class Resume(SimpleExtension):
     def __init__(self, directory, place, **kwargs):
@@ -110,23 +118,27 @@ class Resume(SimpleExtension):
         super(Resume, self).__init__(before_epoch=True)
 
     def do(self, which_callback, *args):
-        if self.has_resumed == False:
+        if not self.has_resumed:
             self.has_resumed = True
-            assert which_callback=="before_epoch"
-            logger.info("loading from savepoint (%s/*/%s)"%(self.directory, self.place))
+            assert which_callback == "before_epoch"
+            logger.info("loading from savepoint (%s/*/%s)" %
+                        (self.directory, self.place))
 
             log_path = os.path.join(self.directory, "logs", self.place+".pkl")
             self.main_loop.log = cPickle.load(open(log_path))
 
-            params_path = os.path.join(self.directory, "params", self.place+".npz")
+            params_path = os.path.join(self.directory, "params",
+                                       self.place+".npz")
             parameter_values = load_parameter_values(params_path)
             self.main_loop.model.set_parameter_values(parameter_values)
 
-            algorithm_path = os.path.join(self.directory, "algorithm_params", self.place+".npz")
+            algorithm_path = os.path.join(self.directory, "algorithm_params",
+                                          self.place+".npz")
             algorithm_values = load_parameter_values(algorithm_path)
             set_algorithm_parameters_values(self.main_loop.algorithm,
-                                           self.main_loop.model,
-                                           algorithm_values)
+                                            self.main_loop.model,
+                                            algorithm_values)
+
 
 class DirectoryCreator(SimpleExtension):
     def __init__(self, directory, **kwargs):
@@ -141,6 +153,7 @@ class DirectoryCreator(SimpleExtension):
 
     def do(self, which_callback, *args):
         pass
+
 
 class SourceSaver(SimpleExtension):
     """
@@ -169,7 +182,9 @@ class SourceSaver(SimpleExtension):
 
         def ignore(path, names):
             # TODO actually manage paths correctly
-            if path == self.dest_directory or path == './' + self.dest_directory:
+            if path == self.dest_directory or\
+               path == './' + self.dest_directory:
+
                 return names
             else:
                 return []
@@ -178,6 +193,7 @@ class SourceSaver(SimpleExtension):
 
     def do(self, which_callback, *args):
         pass
+
 
 class UserFunc(SimpleExtension):
     """
@@ -195,6 +211,7 @@ class UserFunc(SimpleExtension):
     def do(self, which_callback, *args):
         self.func(self)
 
+
 class Profile(SimpleExtension):
     def __init__(self, **kwargs):
         kwargs.setdefault('before_first_epoch', True)
@@ -206,6 +223,6 @@ class Profile(SimpleExtension):
         profile = self.main_loop.profile.total
 
         total = sum(v for k, v in profile.items() if len(k) == 1)
-        for name,val in profile.items():
+        for name, val in profile.items():
             current_row["profile_"+"_".join(name)] = val
         current_row["profile_total"] = total

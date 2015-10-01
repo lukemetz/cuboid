@@ -1,8 +1,8 @@
-from blocks.bricks.base import Brick, lazy, application
+from blocks.bricks.base import lazy, application
 from blocks.bricks import Linear, Initializable
-from blocks.initialization import Constant
 import numpy as np
 from blocks.initialization import NdarrayInitialization
+
 
 class GruInitialization(NdarrayInitialization):
     def __init__(self, reset_init=None, update_init=None, **kwargs):
@@ -26,16 +26,17 @@ class GruInitialization(NdarrayInitialization):
         resets = self.reset_init.generate(rng, half_shape)
         return np.hstack((updates, resets))
 
+
 class GatedRecurrentFork(Initializable):
     @lazy(allocation=['input_dim', 'hidden_dim'])
     def __init__(self, input_dim, hidden_dim,
-            inputs_weights_init=None,
-            inputs_biases_init=None,
-            reset_weights_init=None,
-            reset_biases_init=None,
-            update_weights_init=None,
-            update_biases_init=None,
-            **kwargs):
+                 inputs_weights_init=None,
+                 inputs_biases_init=None,
+                 reset_weights_init=None,
+                 reset_biases_init=None,
+                 update_weights_init=None,
+                 update_biases_init=None,
+                 **kwargs):
         super(GatedRecurrentFork, self).__init__(**kwargs)
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -63,7 +64,7 @@ class GatedRecurrentFork(Initializable):
         pass
 
     def _push_allocation_config(self):
-         super(GatedRecurrentFork, self)._push_allocation_config()
+        super(GatedRecurrentFork, self)._push_allocation_config()
 
     def _push_initialization_config(self):
         super(GatedRecurrentFork, self)._push_initialization_config()
@@ -73,8 +74,8 @@ class GatedRecurrentFork(Initializable):
         if self.inputs_biases_init:
             self.input_to_inputs.biases_init = self.inputs_biases_init
 
-        init = GruInitialization(reset_init = self.weights_init,
-            update_init = self.weights_init)
+        init = GruInitialization(reset_init=self.weights_init,
+                                 update_init=self.weights_init)
 
         if self.update_weights_init:
             init.update_init = self.update_weights_init
@@ -82,15 +83,14 @@ class GatedRecurrentFork(Initializable):
             init.reset_init = self.reset_weights_init
         self.input_to_gate_inputs.weights_init = init
 
-        init = GruInitialization(reset_init = self.biases_init,
-            update_init = self.biases_init)
+        init = GruInitialization(reset_init=self.biases_init,
+                                 update_init=self.biases_init)
 
         if self.update_biases_init:
             init.update_init = self.update_biases_init
         if self.reset_biases_init:
             init.reset_init = self.reset_biases_init
         self.input_to_gate_inputs.biases_init = init
-
 
     @application(inputs=['input_'], outputs=['inputs', 'gate_inputs'])
     def apply(self, input_):
