@@ -142,6 +142,7 @@ class Resume(SimpleExtension):
 
 class DirectoryCreator(SimpleExtension):
     def __init__(self, directory, **kwargs):
+        kwargs.setdefault("after_batch", True)
         if directory[-1] == "/":
             directory = directory[:-1]
         if os.path.exists(directory):
@@ -149,10 +150,11 @@ class DirectoryCreator(SimpleExtension):
             move_to = directory + time_string + "_backup"
             shutil.move(directory, move_to)
         os.mkdir(directory)
+        self.exp_name = directory.split("/")[-1]
         super(DirectoryCreator, self).__init__(**kwargs)
 
     def do(self, which_callback, *args):
-        pass
+        self.main_loop.log.current_row['exp_name'] = self.exp_name
 
 
 class SourceSaver(SimpleExtension):
