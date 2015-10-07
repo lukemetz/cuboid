@@ -1,6 +1,6 @@
 from blocks.bricks import (Brick, Random, Sequence,\
     Feedforward, Initializable, Activation, FeedforwardSequence, Activation, Softmax,\
-    Linear, Rectifier, Logistic)
+    Linear, Rectifier, Logistic, Activation)
 from blocks.bricks.base import lazy, application
 from blocks.bricks import conv
 from blocks.initialization import Constant, NdarrayInitialization
@@ -279,9 +279,9 @@ class Highway(Initializable, Feedforward):
     """ Implements highway networks outlined in [1]
 
     y = H(x,WH)T(x,WT) + x(1-T(x,WT))
-    
+
     Highway networks have the same input dimension and output dimension
-    
+
     Parameters
     ----------
     input_dim: int
@@ -317,3 +317,13 @@ class Highway(Initializable, Feedforward):
         t = self._transform_activation.apply(self._linear_t.apply(input_))
 
         return h*t+input_*(1-t)
+
+
+class SteeperSigmoid(Activation):
+    def __init__(self, scale=3.75, **kwargs):
+        super(SteeperSigmoid, self).__init__(**kwargs)
+        self.scale = scale
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        return 1./(1. + T.exp(-self.scale * input_))
