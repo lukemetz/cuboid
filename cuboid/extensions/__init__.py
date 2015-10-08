@@ -40,14 +40,17 @@ class ExamplesPerSecond(TrainingExtension):
     def __init__(self, roll=10, batch_idx=0):
         self.example_accumulator = []
         self.last_time = time.time()
+        self.start_time = time.time()
         self.times = []
         self.batches_seen = 0
         self.roll = roll
         self.batch_idx = batch_idx
+        self.examples_seen = 0
         super(ExamplesPerSecond, self).__init__()
 
     def after_batch(self, batch):
         batch_size = len(batch.values()[self.batch_idx])
+        self.examples_seen += batch_size
         self.example_accumulator.append(batch_size)
         if len(self.example_accumulator) > self.roll:
             self.example_accumulator.pop(0)
@@ -56,7 +59,11 @@ class ExamplesPerSecond(TrainingExtension):
         examples_per_second = np.sum(self.example_accumulator) /\
                                     (np.sum(self.times))
         log = self.main_loop.log
-        log.current_row['examples_per_second'] = examples_per_second
+        log.current_row['examples_per_second_rolling'] = examples_per_second
+        log.current_row['examples_seen'] = self.examples_seen
+        total_time = time.time() - self.start_time
+        total_examples_per_s = self.examples_seen / total_time
+        log.current_row['examples_per_second_total'] = total_examples_per_s
         self.times.append(new_time - self.last_time)
         self.last_time = new_time
         if len(self.times) > self.roll:
@@ -111,10 +118,11 @@ class SavePoint(SimpleExtension):
 
 
 class Resume(SimpleExtension):
-    def __init__(self, directory, place, **kwargs):
+    def __init__(self, directory, place, load_algorithm=True, **kwargs):
         self.directory = directory
         self.place = place
         self.has_resumed = False
+        self.load_algorithm = load_algorithm
         super(Resume, self).__init__(before_epoch=True)
 
     def do(self, which_callback, *args):
@@ -132,12 +140,14 @@ class Resume(SimpleExtension):
             parameter_values = load_parameter_values(params_path)
             self.main_loop.model.set_parameter_values(parameter_values)
 
-            algorithm_path = os.path.join(self.directory, "algorithm_params",
-                                          self.place+".npz")
-            algorithm_values = load_parameter_values(algorithm_path)
-            set_algorithm_parameters_values(self.main_loop.algorithm,
-                                            self.main_loop.model,
-                                            algorithm_values)
+            if self.load_algorithm:
+                algorithm_path = os.path.join(self.directory,
+                                              "algorithm_params",
+                                              self.place+".npz")
+                algorithm_values = load_parameter_values(algorithm_path)
+                set_algorithm_parameters_values(self.main_loop.algorithm,
+                                                self.main_loop.model,
+                                                algorithm_values)
 
 
 class DirectoryCreator(SimpleExtension):
