@@ -237,6 +237,7 @@ class FuncBrick(Brick):
         return super(FuncBrick, self).get_dim(name)
 
 class DefaultsSequence(FeedforwardSequence, Initializable):
+    @lazy(allocation=["input_dim"])
     def __init__(self, input_dim, lists, **kwargs):
         application_methods = []
         for entry in lists:
