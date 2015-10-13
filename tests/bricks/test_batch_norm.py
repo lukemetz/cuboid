@@ -95,3 +95,26 @@ def test_batchnorm_training():
     assert_allclose(ret[1:5, 0], -0.44721359)
 
     assert_allclose(ret[0:5,1:5], 0)
+
+def test_batchnorm_rolling():
+    layer = BatchNormalization(
+            input_dim = 5, rolling_accumulate=True)
+    layer.initialize()
+    x = T.matrix()
+
+    x_val = np.ones((6, 5), dtype=theano.config.floatX)
+    x_val[0,0] = 10.0
+
+    y = layer.apply(x)
+    cg = ComputationGraph([y])
+
+    _func = cg.get_theano_function()
+    for i in range(100):
+        ret = _func(x_val)
+    u = layer.u.get_value()
+    assert_allclose(u[0], 1.58491838)
+    assert_allclose(u[1], 0.6339674)
+
+    s = layer.s.get_value()
+    assert_allclose(s[0], 7.13214684)
+    assert_allclose(s[1], 0.)

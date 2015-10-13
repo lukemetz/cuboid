@@ -11,6 +11,8 @@ from blocks.initialization import Constant
 from theano import tensor as T
 from blocks.filter import VariableFilter, get_brick
 from blocks.utils import dict_union
+from blocks.graph import add_annotation, Annotation
+from blocks.filter import get_application_call
 import theano
 import logging
 from collections import OrderedDict
@@ -32,12 +34,14 @@ class BatchNormalization(Brick):
 
     @lazy(allocation=['input_dim'])
     def __init__(self, input_dim, epsilon=1e-8, use_population=False,
-                 accumulate=False, **kwargs):
+                 rolling_accumulate=False, accumulate=False, alpha=0.99, **kwargs):
         super(BatchNormalization, self).__init__(**kwargs)
         self.input_dim = input_dim
         self.use_population = use_population
         self.e = epsilon
         self.accumulate = accumulate
+        self.rolling_accumulate = rolling_accumulate
+        self.alpha = alpha
 
     @property
     def seed(self):
@@ -105,7 +109,35 @@ class BatchNormalization(Brick):
         Constant(0).initialize(self.n, self.rng)
 
     @application(inputs=['input_'], outputs=['output'])
-    def apply(self, input_):
+    def apply(self, input_, **kwargs):
+        output, u, s = self.do_apply(input_, **kwargs)
+
+        if self.accumulate:
+            if self.use_population:
+                raise Exception("use_population is set to true as well as with"
+                                "accumulation.",
+                                "This is not possible as there is nothing to "
+                                "take the population of.")
+
+            self.updates[self.u] = self.u + u
+            self.updates[self.s] = self.s + s
+            self.updates[self.n] = self.n + 1
+
+        if self.rolling_accumulate:
+            if self.use_population:
+                raise Exception("use_population is set to true as well as with"
+                                "rolling_accumulation."
+                                "This is not currently supported, "
+                                " and might not make sense.")
+            annotation = get_application_call(output)
+            annotation.updates[self.u] = self.u * self.alpha + (1-self.alpha) * u
+            annotation.updates[self.s] = self.s * self.alpha + (1-self.alpha) * s
+            annotation.updates[self.n] = self.n*0 + 1
+
+        return output
+
+    @application(inputs=['input_'], outputs=['output', 'u', 's'])
+    def do_apply(self, input_):
         X = input_
         naxes = self.naxes
         broadcast_n = T.addbroadcast(self.n, 0)
@@ -149,18 +181,7 @@ class BatchNormalization(Brick):
         else:
             raise NotImplementedError
 
-        if self.accumulate:
-            if self.use_population:
-                raise Exception("use_population is set to true as well as with"
-                                "accumulation.",
-                                "This is not possible as there is nothing to "
-                                "take the population of.")
-
-            self.updates[self.u] = self.u + u
-            self.updates[self.s] = self.s + s
-            self.updates[self.n] = self.n + 1
-
-        return X
+        return X, u, s
 
     def get_dim(self, name):
         if name == "input_" or name == "output":
