@@ -8,6 +8,7 @@ from blocks.initialization import Constant, NdarrayInitialization
 from blocks.utils import shared_floatx_zeros, pack, shared_floatx_nans
 from blocks.config import config
 from blocks.roles import add_role, PARAMETER, FILTER, BIAS, WEIGHT
+import collections
 
 
 import theano
@@ -45,7 +46,7 @@ class Dropout(Random):
 
 class FilterPool(Brick):
     @lazy()
-    def __init__(self, fn, input_dim, **kwargs):
+    def __init__(self, fn, input_dim=None, **kwargs):
         super(FilterPool, self).__init__(**kwargs)
         self.fn = fn
         self.input_dim = input_dim
@@ -60,10 +61,25 @@ class FilterPool(Brick):
         elif name == "output":
             return self.input_dim[0]
 
+
+def _rms(x, axis=1):
+    return T.sqrt(T.mean(x**2), axis=axis)
+
+
+class MeanPool(FilterPool):
+    def __init__(self, **kwargs):
+        super(MeanPool, self).__init__(fn=T.mean, **kwargs)
+
+
+class RMSPool(FilterPool):
+    def __init__(self, **kwargs):
+        super(MeanPool, self).__init__(fn=_rms, **kwargs)
+
+
 class Convolutional(Initializable):
     @lazy(allocation=['input_dim', 'num_filters', 'filter_size'])
-    def __init__(self, input_dim, num_filters, filter_size, pad=(1,1),
-            stride=(1,1), **kwargs):
+    def __init__(self, input_dim, num_filters, filter_size, pad=(1, 1),
+                 stride=(1, 1), **kwargs):
         super(Convolutional, self).__init__(**kwargs)
         self.input_dim = input_dim
         self.num_filters = num_filters
@@ -124,15 +140,35 @@ class Convolutional(Initializable):
         else:
             return super(Conv1D, self).get_dim(name)
 
-class MaxPooling(Brick):
+
+class Pooling(Brick):
     @lazy(initialization=['input_dim'])
     def __init__(self, input_dim, pooling_size=(2,2), stride=None, pad=(0,0), **kwargs):
-        super(MaxPooling, self).__init__(**kwargs)
+        super(Pooling, self).__init__(**kwargs)
         self.pad = pad
         self.input_dim = input_dim
         self.stride = stride
         self.pooling_size=pooling_size
 
+    def apply(self, input_):
+        raise NotImplemented
+
+    def get_dim(self, name):
+        if name == 'output':
+            c, x, y = self.input_dim
+            if type(x) == str and type(y) == str:
+                return (c, x, y)
+            px, py = self.pad
+            if self.stride:
+                sx, sy = self.stride
+            else:
+                sx, sy = self.pooling_size
+
+            kx, ky = self.pooling_size
+            return (c, (x + 2 * px - kx) // sx + 1,\
+                       (y + 2 * py - ky) // sy + 1)
+
+class MaxPooling(Pooling):
     @application(inputs=["input_"], outputs=["output"])
     def apply(self, input_):
         stride = self.stride
@@ -140,18 +176,28 @@ class MaxPooling(Brick):
             stride = self.pooling_size
         return dnn_pool(input_, ws=self.pooling_size, stride=stride, pad=self.pad)
 
-    def get_dim(self, name):
-        if name == 'output':
-            c, x, y = self.input_dim
-            px,py = self.pad
-            if self.stride:
-                sx, sy = self.stride
-            else:
-                sx, sy = self.pooling_size
 
-            kx, ky= self.pooling_size
-            return (c, (x + 2 * px - kx) // sx + 1,\
-                       (y + 2 * py - ky) // sy + 1)
+class MeanPooling(Pooling):
+    @application(inputs=["input_"], outputs=["output"])
+    def apply(self, input_):
+        stride = self.stride
+        if not stride:
+            stride = self.pooling_size
+        return dnn_pool(input_, ws=self.pooling_size, stride=stride,
+                        pad=self.pad, mode='average_inc_pad')
+
+
+class RMSPooling(Pooling):
+    @application(inputs=["input_"], outputs=["output"])
+    def apply(self, input_):
+        stride = self.stride
+        if not stride:
+            stride = self.pooling_size
+        inter = input_**2
+        inter = dnn_pool(inter, ws=self.pooling_size, stride=stride,
+                         pad=self.pad, mode='average_inc_pad')
+        return T.sqrt(inter)
+
 
 class LeakyRectifier(Activation):
     def __init__(self, a=0.01, **kwargs):
@@ -327,3 +373,74 @@ class SteeperSigmoid(Activation):
     @application(inputs=['input_'], outputs=['output'])
     def apply(self, input_):
         return 1./(1. + T.exp(-self.scale * input_))
+
+
+class PReLU(Initializable):
+    """Rectifier with a learned negative slope.
+
+    Modified from https://github.com/mila-udem/blocks-extras/pull/18
+    Thanks janchorowski!
+
+    Parameters
+    ----------
+    dim : int
+        The dimension of the input. Required if slopes are not tied
+        by :meth:`~.Brick.allocate`.
+    tie_slopes : bool, default False
+        Do all units use the same negative slope, or is the slope specific
+        to each unit? When slopes are tied it is not necessary to specify
+        the dim - it is not used.
+    slopes_init : object, default Constant(0.25)
+        A `NdarrayInitialization` instance which will be used by to
+        initialize the slopes matrix. Required by
+        :meth:`~.Brick.initialize`.
+
+    See also: [He2015]_.
+
+    .. [He2015] K. He at al. Delving Deep into Rectifiers:
+        Surpassing Human-Level Performance on ImageNet Classification
+
+    """
+    @lazy(allocation=['input_dim'])
+    def __init__(self, input_dim, tie_slopes=False, slopes_init=None, **kwargs):
+        super(PReLU, self).__init__(**kwargs)
+        self.input_dim = input_dim
+        self.tie_slopes = tie_slopes
+        if slopes_init is None:
+            slopes_init = Constant(0.25)
+        self.slopes_init = slopes_init
+
+    def _allocate(self):
+        dim = None
+        if isinstance(self.input_dim, collections.Iterable):
+            if len(self.input_dim) == 3:  # CNN
+                dim = self.input_dim[0]
+            else:
+                raise NotImplemented
+        else:
+            dim = self.input_dim
+
+        if self.tie_slopes:
+            dim = 1
+        a = shared_floatx_nans((dim,), name='a')
+        add_role(a, PARAMETER)
+        self.parameters.append(a)
+
+    def _initialize(self):
+        a, = self.parameters
+        self.slopes_init.initialize(a, self.rng)
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        """Apply the PReLU activation: x if x>=0 else a*x."""
+        a, = self.parameters
+        if self.tie_slopes:
+            a = T.addbroadcast(a, 0)
+        else:
+            a = a.dimshuffle('x', 0, 'x', 'x')
+        return T.switch(input_ >= 0, input_, input_ * a)
+
+    def get_dim(self, name):
+        if name in ['input_', 'output']:
+            return self.input_dim
+        super(PReLU, self).get_dim(name)
