@@ -105,7 +105,9 @@ def test_examples_per_second():
     extension = ExamplesPerSecond()
     main_loop = setup_mainloop([extension])
     main_loop.run()
-    assert 'examples_per_second' in main_loop.log.current_row
+    assert 'examples_per_second_rolling' in main_loop.log.current_row
+    assert 'examples_seen' in main_loop.log.current_row
+    assert 'examples_per_second_total' in main_loop.log.current_row
 
 def test_user_func():
     # make python scope play nice
