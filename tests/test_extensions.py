@@ -21,6 +21,7 @@ from blocks.roles import add_role, PARAMETER
 
 from cuboid.extensions import (SourceSaver, UserFunc, LogToFile,
     ExamplesPerSecond, SavePoint, Resume, DirectoryCreator, Profile)
+from cuboid.extensions.monitoring import PerClassAccuracyMonitor, AUCMonitor
 
 floatX = theano.config.floatX
 
@@ -184,3 +185,54 @@ def test_compose_decay_copy():
     assert (decay.variable_modifiers != [linear1,linear2])
     assert(linear2.initial_value == 100.0)
     assert(decay.variable_modifiers[1].initial_value == 90.0)
+
+def test_auc_monitor():
+    features = [numpy.array(f, dtype=floatX)
+                for f in [[1, 2], [3, 4], [5, 6]]]
+    dataset = IterableDataset(dict(features=features))
+    datastream = DataStream(dataset)
+    test_probs = shared_floatx(numpy.array([
+        [0.0, 0.0, 1.0],
+        [0.75, 0.25, 0.0],
+        [0.0, 0.75, 0.25],
+        [0.25, 0.75, 0.0],
+    ], dtype=floatX))
+    targets = shared_floatx(numpy.array([
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0]
+    ], dtype=floatX))
+    auc_monitor = AUCMonitor(datastream, test_probs, targets)
+    auc_monitor.main_loop = setup_mainloop([])
+    auc_monitor.do('after_batch')
+    assert_allclose(auc_monitor.main_loop.log[0]['auc'], 0.81944444444444453)
+
+def test_perclass_accuracy_monitor():
+    features = [numpy.array(f, dtype=floatX)
+                for f in [[1, 2], [3, 4], [5, 6]]]
+    dataset = IterableDataset(dict(features=features))
+    datastream = DataStream(dataset)
+    label_i_to_c = {0:"a", 1:"b", 2:"c"}
+    test_probs = shared_floatx(numpy.array([
+        [0.0, 0.0, 1.0],
+        [0.75, 0.25, 0.0],
+        [0.0, 0.75, 0.25],
+        [0.25, 0.75, 0.0],
+    ], dtype=floatX))
+    targets = shared_floatx(numpy.array([
+        [2.0],
+        [0.0],
+        [1.0],
+        [2.0]
+    ], dtype=floatX))
+    perclass_accuracy_monitor = PerClassAccuracyMonitor(datastream,
+        prediction=numpy.argmax(test_probs, axis=1),
+        targets=targets.ravel(),
+        label_i_to_c=label_i_to_c)
+    perclass_accuracy_monitor.main_loop = setup_mainloop([])
+    perclass_accuracy_monitor.do('after_batch')
+
+    assert perclass_accuracy_monitor.main_loop.log[0]['perclass accuracy_a']==1.0
+    assert perclass_accuracy_monitor.main_loop.log[0]['perclass accuracy_b']==1.0
+    assert perclass_accuracy_monitor.main_loop.log[0]['perclass accuracy_c']==0.5
