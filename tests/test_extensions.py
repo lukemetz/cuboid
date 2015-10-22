@@ -21,7 +21,8 @@ from blocks.roles import add_role, PARAMETER
 
 from cuboid.extensions import (SourceSaver, UserFunc, LogToFile,
     ExamplesPerSecond, SavePoint, Resume, DirectoryCreator, Profile)
-from cuboid.extensions.monitoring import PerClassAccuracyMonitor, AUCMonitor
+from cuboid.extensions.monitoring import (PerClassAccuracyMonitor,
+    AUCMonitor, ConfusionMatrixMonitor)
 
 floatX = theano.config.floatX
 
@@ -236,3 +237,41 @@ def test_perclass_accuracy_monitor():
     assert perclass_accuracy_monitor.main_loop.log[0]['perclass accuracy_a']==1.0
     assert perclass_accuracy_monitor.main_loop.log[0]['perclass accuracy_b']==1.0
     assert perclass_accuracy_monitor.main_loop.log[0]['perclass accuracy_c']==0.5
+
+def test_confusion_matrix():
+    features = [numpy.array(f, dtype=floatX)
+                for f in [[1, 2], [3, 4], [5, 6]]]
+    dataset = IterableDataset(dict(features=features))
+    datastream = DataStream(dataset)
+    label_i_to_c = {0:"a", 1:"b", 2:"c"}
+    test_probs = shared_floatx(numpy.array([
+        [0.75, 0.0, 0.0],
+        [0.75, 0.0, 0.0],
+        [0.0, 0.0, 0.75],
+        [0.0, 0.0, 0.75],
+        [0.75, 0.0, 0.0],
+        [0.0, 0.0, 0.75]
+    ], dtype=floatX))
+    targets = shared_floatx(numpy.array([
+        [2.0],
+        [0.0],
+        [2.0],
+        [2.0],
+        [0.0],
+        [1.0]
+    ], dtype=floatX))
+    d = DirectoryCreator(directory="confusionMatrixTest")
+    extension = ConfusionMatrixMonitor(datastream,
+        prediction=numpy.argmax(test_probs, axis=1),
+        targets=targets.ravel(),
+        dest_directory="confusionMatrixTest",
+        every_n_batches=3)
+    main_loop = setup_mainloop([d, extension])
+
+    main_loop.run()
+    path = 'confusionMatrixTest/confusion_iterations_3.npz'
+    expected = numpy.array([[1.0, 0.0, 0.0],
+                            [0.0, 0.0, 1.0],
+                            [(1.0/3.0), 0.0, (2.0/3.0)]], dtype=floatX)
+    assert_allclose(numpy.load(path), expected)
+    shutil.rmtree('confusionMatrixTest')
