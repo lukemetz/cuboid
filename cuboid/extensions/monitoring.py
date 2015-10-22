@@ -5,12 +5,14 @@ from sklearn.metrics import roc_auc_score
 import numpy as np
 import logging
 
-logger = logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
 
 class AUCMonitor(SimpleExtension, MonitoringExtension):
     def __init__(self, data_stream, probs, labels, **kwargs):
         self.data_stream = data_stream
-        self.evaluator = DataStreamEvaluator([probs.copy('probs'), labels.copy('targets')])
+        self.evaluator = DataStreamEvaluator([probs.copy('probs'),
+                                              labels.copy('targets')])
         logger.info("compiling auc logger")
         self.evaluator._compile()
         super(AUCMonitor, self).__init__(**kwargs)
