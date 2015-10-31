@@ -58,3 +58,22 @@ class UniformIdentity(NdarrayInitialization):
         mult = rng.uniform(self.min, self.max, size=shape).\
             astype(theano.config.floatX)
         return mult * np.eye(rows, cols, dtype=theano.config.floatX)
+
+
+class LoadWeights(NdarrayInitialization):
+    """ Load weights from a file
+
+    Parameters
+    ----------
+    path: str
+        path to weights npy to load
+    """
+    def __init__(self, path):
+        self.path = path
+
+    def generate(self, rng, shape):
+        load = np.load(self.path)
+        if load.shape != shape:
+            raise ValueError("Weights shapes don't line up. Loaded (%s), "
+                             "expected (%s)" % (load.shape, shape))
+        return load.astype(theano.config.floatX)
