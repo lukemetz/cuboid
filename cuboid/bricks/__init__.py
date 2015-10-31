@@ -88,6 +88,11 @@ class Convolutional(Initializable):
         self.stride = stride
 
     def _allocate(self):
+        if not isinstance(self.input_dim, collections.Iterable) or len(self.input_dim) != 3:
+            raise ValueError("`input_dim` on Convolutional(%s) "
+                             "should be iterable and have a inputdim of 3. "
+                             "Got %s"
+                             %(self.name, str(self.input_dim)))
         num_channels = self.input_dim[0]
         W = shared_floatx_nans((self.num_filters, num_channels) +
                                self.filter_size, name='W')
