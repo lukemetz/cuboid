@@ -1,6 +1,7 @@
 from blocks.bricks import (Brick, Random, Sequence,\
-    Feedforward, Initializable, Activation, FeedforwardSequence, Activation, Softmax,\
+    Feedforward, Initializable, Activation, FeedforwardSequence, Activation,\
     Linear, Rectifier, Logistic, Activation)
+from blocks.bricks import Softmax as BlocksSoftmax
 from blocks.bricks.base import lazy, application
 from blocks.bricks import conv
 from blocks.initialization import Constant, NdarrayInitialization
@@ -88,7 +89,9 @@ class Convolutional(Initializable):
         self.stride = stride
 
     def _allocate(self):
-        if not isinstance(self.input_dim, collections.Iterable) or len(self.input_dim) != 3:
+        if not isinstance(self.input_dim, collections.Iterable)\
+           or len(self.input_dim) != 3:
+
             raise ValueError("`input_dim` on Convolutional(%s) "
                              "should be iterable and have a inputdim of 3. "
                              "Got %s"
@@ -276,7 +279,9 @@ class DefaultsSequence(FeedforwardSequence, Initializable):
         for brick, application_method in zip(self.children, self.application_methods):
             print input_dim, brick.name
             # hack as Activations don't have get_dim
-            if not isinstance(brick, Activation) and not isinstance(brick, Softmax):
+            if not isinstance(brick, Activation) and not isinstance(brick, BlocksSoftmax)\
+               and not isinstance(brick, Softmax):
+
                 brick.input_dim = input_dim
                 brick.push_allocation_config()
                 input_dim = brick.get_dim(brick.apply.outputs[0])
@@ -450,3 +455,19 @@ class PReLU(Initializable):
         if name in ['input_', 'output']:
             return self.input_dim
         super(PReLU, self).get_dim(name)
+
+
+class Softmax(Brick):
+    """ Softmax that can or cannot use built in theano softmax
+    """
+    def __init__(self, built_in=False, **kwargs):
+        super(Softmax, self).__init__(**kwargs)
+        self.built_in = built_in
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        if self.built_in:
+            return T.nnet.softmax(input_)
+        else:
+            e_x = T.exp(input_ - input_.max(axis=1).dimshuffle(0, 'x'))
+            return e_x / e_x.sum(axis=1).dimshuffle(0, 'x')
