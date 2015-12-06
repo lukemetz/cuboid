@@ -1,6 +1,8 @@
 from multiprocessing import Process
 from fuel.streams import ServerDataStream
 from subprocess import Popen
+import atexit
+import os
 
 def get_open_port():
     # http://stackoverflow.com/questions/2838244/get-open-tcp-port-in-python
@@ -32,8 +34,14 @@ def fork_to_background(make_datastream, sources):
                                   produces_examples=False)
     return datastream, proc
 
-def stream_from_file(filename, *args):
+def stream_from_file(sources, filename, *args):
     port = get_open_port()
-    proc = Popen(['python', filename, str(port)] + args, env=dict(os.environ, THEANO_FLAGS='device=cpu'))
-    stream = ServerDataStream(ss.sources, port=port, hwm=50, produces_examples=False)
+    proc = Popen(['python', filename, str(port)] + list(args), env=dict(os.environ, THEANO_FLAGS='device=cpu'))
+    stream = ServerDataStream(sources, port=port, hwm=50, produces_examples=False)
+
+    def term():
+        if proc:
+            proc.kill()
+    atexit.register(term)
+
     return stream, proc
