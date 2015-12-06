@@ -10,7 +10,8 @@ from blocks.utils import shared_floatx_zeros, pack, shared_floatx_nans
 from blocks.config import config
 from blocks.roles import add_role, PARAMETER, FILTER, BIAS, WEIGHT
 import collections
-
+from theano.sandbox.cuda.basic_ops import gpu_contiguous, gpu_alloc_empty
+from theano.sandbox.cuda.dnn import GpuDnnConvDesc, GpuDnnConvGradI
 
 import theano
 from theano import tensor as T
@@ -471,3 +472,38 @@ class Softmax(Brick):
         else:
             e_x = T.exp(input_ - input_.max(axis=1).dimshuffle(0, 'x'))
             return e_x / e_x.sum(axis=1).dimshuffle(0, 'x')
+
+
+class Deconvolutional(Convolutional):
+    @lazy(allocation=['input_dim', 'num_filters', 'filter_size'])
+    def __init__(self, input_dim, num_filters, filter_size, pad=(1, 1),
+                 stride=(1, 1), **kwargs):
+        super(Deconvolutional, self).__init__(input_dim,
+                                              num_filters,
+                                              filter_size,
+                                              pad,
+                                              stride,
+                                              **kwargs)
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        if self.use_bias:
+            W, b = self.parameters
+        else:
+            W, = self.parameters
+        W = W.dimshuffle(1, 0, 2, 3)
+        img = gpu_contiguous(input_)
+        kerns = gpu_contiguous(W)
+        desc = GpuDnnConvDesc(border_mode=self.pad, subsample=self.stride,
+                              conv_mode='conv')(gpu_alloc_empty(img.shape[0],
+                                                                kerns.shape[1],
+                                                                img.shape[2]*self.stride[0],
+                                                                img.shape[3]*self.stride[1]).shape,
+                                                kerns.shape)
+        out = gpu_alloc_empty(img.shape[0], kerns.shape[1],
+                              img.shape[2]*self.stride[0],
+                              img.shape[3]*self.stride[1])
+        output = GpuDnnConvGradI()(kerns, img, out, desc)
+        if self.use_bias:
+            output += b.dimshuffle('x', 0, 'x', 'x')
+        return output

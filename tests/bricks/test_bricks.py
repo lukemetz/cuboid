@@ -6,7 +6,7 @@ from numpy.testing import assert_allclose, assert_equal
 from cuboid.bricks import Dropout, FilterPool, Highway
 from cuboid.bricks.batch_norm import BatchNormalization
 from cuboid.bricks import LeakyRectifier, FuncBrick, DefaultsSequence
-from cuboid.bricks import Convolutional, Flattener, MaxPooling
+from cuboid.bricks import Convolutional, Flattener, MaxPooling, Deconvolutional
 
 from blocks.initialization import Constant
 from blocks.initialization import Identity as init_Identity
@@ -200,3 +200,15 @@ def test_highway_activation():
     ret = _func(x_val)
     assert_allclose(ret, np.tanh(np.ones((4,100))))
 
+def test_deconvolutional():
+    deconv = Deconvolutional([3, 4, 4], num_filters=10, filter_size=(3, 3), pad=(2, 2), stride=(2, 2))
+    deconv.biases_init = Constant(0.0)
+    deconv.weights_init = Constant(1.0)
+    deconv.initialize()
+    x = T.tensor4('input')
+    y = deconv.apply(x)
+    func_ = theano.function([x], y)
+
+    x_val = np.ones((1, 3, 4, 4), dtype=theano.config.floatX)
+    res = func_(x_val)
+    assert_allclose(res.shape, (1, 10, 8, 8))
