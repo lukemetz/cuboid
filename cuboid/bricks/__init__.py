@@ -507,3 +507,21 @@ class Deconvolutional(Convolutional):
         if self.use_bias:
             output += b.dimshuffle('x', 0, 'x', 'x')
         return output
+
+
+class ExpLU(Activation):
+    """Exponential Linear Units.
+
+    See also: [1]_.
+
+    .. [1] D. Clevert Fast and Accurate Deep Network Learning
+        By Exponential Linear Units (ELU's)
+
+    """
+
+    def __init__(self, **kwargs):
+        super(ExpLU, self).__init__(**kwargs)
+
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        return T.switch(T.ge(input_, 0), input_, T.exp(input_)-1)
