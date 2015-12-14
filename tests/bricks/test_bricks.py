@@ -3,7 +3,7 @@ import theano
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
-from cuboid.bricks import Dropout, FilterPool, Highway
+from cuboid.bricks import Dropout, FilterPool, Highway, ExpLU
 from cuboid.bricks.batch_norm import BatchNormalization
 from cuboid.bricks import LeakyRectifier, FuncBrick, DefaultsSequence
 from cuboid.bricks import Convolutional, Flattener, MaxPooling, Deconvolutional
@@ -212,3 +212,17 @@ def test_deconvolutional():
     x_val = np.ones((1, 3, 4, 4), dtype=theano.config.floatX)
     res = func_(x_val)
     assert_allclose(res.shape, (1, 10, 8, 8))
+
+def test_exponential_linear_unit():
+    x = T.matrix()
+    y = ExpLU().apply(x)
+
+    _func = theano.function([x], y)
+
+    x_val = np.ones((1, 1), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret, 1)
+
+    x_val = -1 * np.ones((1, 1), dtype=theano.config.floatX)
+    ret = _func(x_val)
+    assert_allclose(ret, -0.63212055882855767)
