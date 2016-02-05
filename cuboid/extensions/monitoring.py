@@ -87,7 +87,7 @@ class PerClassAccuracyMonitor(SimpleExtension, MonitoringExtension):
                 np.sum(correct[targets==target]) / 
                 np.float32(np.sum((targets==target))))
         self.add_records(self.main_loop.log, 
-                        [('perclass accuracy_%s'%label, accuracy) 
+                        [('perclass_accuracy_%s'%label, accuracy) 
                         for (label,accuracy) in 
                         perclass_accuracy_map.iteritems()])
 
